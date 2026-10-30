@@ -24,12 +24,11 @@ repo inherits (fixed architecture, evaluation protocol, leakage rules, writing s
   the search changes + the `search:` block (values and the way they are drawn live in these files only, never in
   Python). A tabular model file selects its own hyperparameters file (`override /hyperparameters`), so
   `model=lightgbm,mlp` pairs each with its values. `tuning/<model>/{search,final}.yaml` are the saved commands.
-- **`prepare_data.py` reproduces the thesis data files** (full rebuild compared file by file on 30 Oct 2026,
-  `EXPERIMENTS.md` "Data preparation"): RWPE, the tuned sheet, graph structure, labels, baseline columns and 41 GFP
-  columns identical; the 20 GFP amount statistics differ in 0.03 % of cells by more than 1e-3 because the original
-  exchange rates are known only to float32 precision (snapml itself is deterministic). The rates are frozen in
-  `conf/fx_rates.csv` (a live download would not be reproducible, Cineca is offline). `data/` holds the thesis files
-  and is what every run uses. Do not change an operation in `prepare_data.py` without redoing that comparison.
+- **`prepare_data.py` reproduces the thesis data files bit for bit** (full rebuild compared file by file on
+  30 Oct 2026, `EXPERIMENTS.md` "Data preparation"). The exchange rates are frozen in `conf/fx_rates.csv` and must be
+  read with `float_precision='round_trip'` (the default parser is one bit off, which changes the GFP amount
+  statistics). `data/` holds the thesis files and is what every run uses. Do not change an operation in
+  `prepare_data.py` without redoing that comparison.
 - **Protocol is fixed** (README section 5). Threshold on validation, test scored once, every metric on three splits,
   `invariant_params` identical within a family. The restructure of 30 Oct 2026 was checked byte-identical against
   the previous `aml_hydra` code on a data slice (every mode, every model); the one deliberate change since is the

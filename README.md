@@ -51,7 +51,7 @@ python prepare_data.py step=rwpe       # one step
 The GFP step needs IBM `snapml`, whose Windows build cannot create the Graph Feature Preprocessor: on Windows
 `prepare_data.yaml` runs `pipeline/gfp.py` inside WSL (`python3 -m venv ~/gfp_env && ~/gfp_env/bin/pip install
 'numpy<2' snapml` once); on Linux set `gfp.python=''` and `pip install snapml`. A rebuild reproduces the thesis
-files up to the precision of the frozen exchange rates (`EXPERIMENTS.md`, "Data preparation").
+files bit for bit (`EXPERIMENTS.md`, "Data preparation").
 
 ## 2. Where to run
 

@@ -56,20 +56,15 @@ is not ported (needs the raw CSV and the WSL GFP stream; outside the protocol).
 
 `prepare_data.py` rebuilds every input from the two raw IBM files in `data/raw/` (README section 1). Reference
 output: the sister repository's `Data/` (copied into `data/`). Verification status: ✅ full rebuild on 30 Oct 2026
-(`data_rebuilt/`, 3 steps, about 40 minutes with the GFP stream in WSL) compared file by file:
+(3 steps, about 40 minutes with the GFP stream in WSL) compared file by file: `train/val/test_graph.pt` (every
+attribute), the six `rwpe/` files, `gfp_variants/tuned.npy` and `tuned_cols.json` are **bit-identical** to the thesis
+files; `feature_meta.json` has the same columns and sizes (the old file carries extra notes, the new one `split_rows`).
 
-| File | Result |
-|---|---|
-| `rwpe/` (6 files), `gfp_variants/tuned.npy`, `tuned_cols.json` | identical |
-| graphs: node features, edges, times, labels, masks, the 20 baseline columns, 41 of the 61 GFP columns | identical |
-| graphs: the 20 GFP amount statistics (avg / sum / var / skew / kurtosis of amounts per account) | cells differing by more than 1e-3: 0.03 %; by more than 0.1: 0.0013 % (near-constant accounts, where skew / kurtosis are numerically undefined) |
-| `feature_meta.json` | same columns and sizes; the old file carries extra notes, the new one `split_rows` |
-
-Cause: snapml is deterministic (checked: repeated runs, 8 threads and 1 thread, identical), so the difference is in
-its input, the float64 USD amounts. The original exchange rates were downloaded in September 2022 and are recoverable
-from the stored features only to float32 precision (`Amount_Log` is identical), so a few amounts differ below that
-resolution. Sums then differ in the last bit and the unstable statistics of near-constant accounts flip. This is
-the limit of what a rebuild can reproduce; the thesis files in `data/` stay the data every run uses.
+One fix was needed on the way: the first rebuild differed in the 20 GFP amount statistics (0.03 % of cells by more
+than 1e-3). snapml is deterministic (repeated runs, 8 and 1 threads: identical), so the cause was its input, the USD
+amounts: pandas' default CSV float parser read 80 of the 140 frozen rates one bit off. `prepare_data.py` now reads
+`conf/fx_rates.csv` with `float_precision='round_trip'`; the rates then equal the Yahoo values bit for bit and the
+rebuilt graphs equal the thesis graphs.
 
 ## Log
 
@@ -87,4 +82,5 @@ the limit of what a rebuild can reproduce; the thesis files in `data/` stay the 
   Then the best-epoch rule was switched to validation PR-AUC for every model (see the top of this file) and the
   slice runs repeated. Direct check against the pre-refactor thesis `gnn_core.py` (same process, one thread): every
   operator on configs 2 and 4 at the fixed recipe plus two tuned recipes, identical history, metrics and weights.
-- 2026-10-30 — full data rebuild by Sandro (`data_rebuilt/`) compared with the thesis files: see "Data preparation".
+- 2026-10-30 — full data rebuild compared with the thesis files: bit-identical after the exchange-rate parser fix
+  (see "Data preparation").
