@@ -58,7 +58,7 @@ files bit for bit (`EXPERIMENTS.md`, "Data preparation").
 **Laptop.** `machine=local` is the default: `data/` and `outputs/` inside the repo, GPU if torch sees one, else CPU
 (fine for LightGBM, the MLP and short checks; a GNN run needs a GPU). Multiruns (`-m`) run one job after another.
 
-**Kaggle (GNN runs).** `notebooks/fixed_architecture_runs.ipynb` is the ready notebook (set `MODEL`, Run All). The prepared files are already Kaggle datasets: `sandrokhizanishvili/hi-small-gnn` (the
+**Kaggle (GNN runs).** `notebooks/gnn_fixed_architecture_runs.ipynb` is the ready notebook (set `MODEL`, Run All). The prepared files are already Kaggle datasets: `sandrokhizanishvili/hi-small-gnn` (the
 graphs and `feature_meta.json`), `hi-small-rwpe` and `hi-small-gfp-tuned`. Add them as inputs of a GPU notebook, then:
 
 ```
