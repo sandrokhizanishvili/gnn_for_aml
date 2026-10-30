@@ -1,0 +1,8 @@
+# @package _global_
+# Kaggle notebook: runs in this process on the notebook GPU. paths.data = the dataset with the graph files
+# (hi-small-gnn). The node-encoding and tuned-GFP studies need rwpe/ and gfp_variants/ next to the graphs:
+# link the three datasets into one folder and pass paths.data=/kaggle/working/data (README section 2).
+machine: kaggle
+paths:
+  data: /kaggle/input/datasets/sandrokhizanishvili/hi-small-gnn
+  outputs: /kaggle/working/outputs

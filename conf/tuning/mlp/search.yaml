@@ -1,0 +1,6 @@
+# @package _global_
+# The mlp random search, one job -> outputs/tuning/mlp/<run>/recipe.json.
+defaults:
+  - override /model: mlp
+  - override /hyperparameters: mlp/search
+mode: tune

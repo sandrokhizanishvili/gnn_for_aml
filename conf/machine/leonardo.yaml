@@ -1,0 +1,27 @@
+# @package _global_
+# Cineca Leonardo Booster: every job of a multirun (-m) is one single-GPU SLURM task, submitted by the submitit launcher.
+# Set "export ACCOUNT=<your project account>" in your ~/.bashrc (saldo -b lists it). Nothing else to edit.
+defaults:
+  - override /hydra/launcher: submitit_slurm
+machine: leonardo
+paths:
+  data: ${oc.env:WORK}/aml_thesis/data
+  outputs: ${oc.env:WORK}/aml_thesis/outputs
+hydra:
+  launcher:
+    submitit_folder: ${hydra.sweep.dir}/jobs/%j   # job scripts and logs, next to the overrides of the launch
+    partition: boost_usr_prod
+    qos: normal                  # 24 h per job; a job cut by the limit is requeued and resumes (max_num_timeout)
+    account: ${oc.env:ACCOUNT}
+    timeout_min: 1440
+    nodes: 1
+    tasks_per_node: 1
+    gpus_per_node: 1
+    cpus_per_task: 8
+    mem_gb: 64
+    array_parallelism: 32        # running tasks per multirun; lower it if your per-user GPU limit is smaller
+    max_num_timeout: 3
+    setup:                       # the jobs run the python that submitted them: type the commands with the env activated
+      - export PATH=${oc.env:WORK}/aml_thesis/env/bin:$PATH
+      - export MPLBACKEND=Agg PYTHONUNBUFFERED=1
+      - export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK

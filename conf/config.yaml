@@ -1,0 +1,25 @@
+# One run. Groups: hyperparameters (<model>/fixed | search; a tabular model selects its own), model (gin | pna | gat | transformer | lightgbm | mlp),
+# feature_config (c1..c7), machine (local | kaggle | leonardo), tuning (a saved search / final-retrain command).
+defaults:
+  - _self_
+  - hyperparameters: gnn/fixed
+  - model: gin
+  - feature_config: c5
+  - machine: local
+  - tuning: null
+
+mode: train             # train | tune | final | check
+seed: 42
+trial: null             # tune only: index into the drawn trial list (0 = the fixed values)
+node_encoding: none     # none | rwpe8 | rwpe16   (random-walk columns appended to the 6 entity one-hots)
+gfp_sheet: default      # default | tuned        (which GFP sheet fills the 61 / 64 GFP columns)
+
+hydra:
+  job:
+    chdir: false
+  output_subdir: null   # every run saves its own config.yaml instead
+  run:
+    dir: ${paths.outputs}/logs/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${paths.outputs}/logs/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.num}

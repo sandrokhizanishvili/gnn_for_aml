@@ -1,0 +1,16 @@
+# A plain neural net on the same 93 inputs as LightGBM, edge columns standardised on the train rows. point = the frozen
+# winner of the thesis search (trial 28), so mode train reproduces the thesis runs without re-running the search.
+for: mlp
+epochs: 60                   # cap; every fit stops after `patience` epochs without a better validation PR-AUC
+patience: 10
+std_floor: 0.001             # floor of the train std in the standardisation
+point:
+  hidden: 512
+  depth: 4
+  shape: flat                # flat | funnel | resnet
+  norm: batch
+  dropout: 0.2
+  lr: 0.003
+  weight_decay: 0.0
+  pos_weight: 4.0
+  batch_size: 2048

@@ -1,0 +1,4 @@
+# Feature configuration 1: no edge features in message passing, the 20 baseline columns at the readout.
+id: 1
+mp: none        # edge columns inside message passing: none | base (20) | full (20 + GFP)
+readout: base   # edge columns at the readout: base | full | gfp

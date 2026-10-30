@@ -1,0 +1,13 @@
+# @package _global_
+# The GNN random search: 100 trials x 2 seeds for every (operator, configs 2 / 4) = 1,600 jobs, then "python aggregate.py".
+# Must match the search block of hyperparameters/gnn/search.yaml (n_trials, tuning_seeds, models, feature_configs).
+defaults:
+  - override /hyperparameters: gnn/search
+mode: tune
+hydra:
+  sweeper:
+    params:
+      model: gin,pna,gat,transformer
+      feature_config: c2,c4
+      trial: range(0,100)
+      seed: 42,43

@@ -1,0 +1,3 @@
+# GIN: GINConv, or GINEConv when edge features enter message passing. Values: conf/hyperparameters/gnn/.
+name: gin
+kind: gnn

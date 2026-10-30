@@ -1,0 +1,59 @@
+# Data preparation (prepare_data.py): the raw IBM HI-Small files in ${paths.data}/raw -> every input of run.py.
+#   python prepare_data.py                 every step: graphs -> rwpe -> gfp_tuned (a finished step is skipped)
+#   python prepare_data.py step=rwpe       one step
+defaults:
+  - _self_
+  - machine: local
+
+step: all                     # all | graphs | rwpe | gfp_tuned
+raw: ${paths.data}/raw        # HI-Small_Trans.csv and HI-Small_accounts.csv
+cutoff: '2022-09-11'          # keep Timestamp < cutoff (the 10 "real" days; the 8 later days hold only pattern completions)
+split: [0.6, 0.8]             # temporal split: row fractions where train ends and val ends
+bank_risk_m: 200              # smoothing of the bank target encoding (train-label only; causal on the train rows)
+fx_rates: conf/fx_rates.csv   # (currency, date) -> USD rate used by the thesis (Yahoo Finance closes, Sep 2022);
+                              # frozen in the repo: a download would not reproduce the features, and Cineca is offline
+
+gfp:                          # IBM snapml GraphFeaturePreprocessor, streamed causally in batches (Altman et al. 2023)
+  python: wsl ~/gfp_env/bin/python   # interpreter with snapml for pipeline/gfp.py; '' = import snapml in this process (Linux)
+  batch: 128
+  default:                    # the sheet inside the graph files (61 columns)
+    num_threads: 8
+    time_window: 86400
+    vertex_stats: true
+    vertex_stats_tw: 86400
+    vertex_stats_cols: [3, 4]            # 3 = timestamp, 4 = Amount_USD
+    vertex_stats_feats: [0, 1, 2, 3, 4, 8, 9, 10]   # fan, degree, ratio, avg, sum, var, skew, kurtosis
+    fan: false
+    fan_bins: [2, 5, 10]
+    degree: false
+    degree_bins: [2, 5, 10]
+    scatter-gather: true
+    scatter-gather_tw: 21600
+    scatter-gather_bins: [2, 3, 5]
+    temp-cycle: true
+    temp-cycle_tw: 86400
+    temp-cycle_bins: [2, 3, 5]
+    lc-cycle: true
+    lc-cycle_tw: 86400
+    lc-cycle_bins: [2, 3, 5]
+    lc-cycle_len: 6
+  tuned:                      # gfp_variants/tuned.npy (64 columns): default with these changes
+    time_window: 172800
+    scatter-gather_tw: 43200
+    temp-cycle_tw: 172800
+    lc-cycle_tw: 172800
+    vertex_stats_tw: 172800
+    lc-cycle_len: 12
+    scatter-gather_bins: [2, 4, 6, 8]
+    temp-cycle_bins: [2, 4, 6, 8]
+    lc-cycle_bins: [2, 4, 6, 8]
+
+rwpe:
+  k: [8, 16]                  # walk lengths; one file per (k, split), from the snapshot's own edges without self-loops
+
+hydra:
+  job:
+    chdir: false
+  output_subdir: null
+  run:
+    dir: ${paths.outputs}/logs/prepare_${now:%Y-%m-%d_%H-%M-%S}

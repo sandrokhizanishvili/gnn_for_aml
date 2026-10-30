@@ -1,0 +1,3 @@
+# PNA: PNAConv with the in-degree histogram of the training graph. Values: conf/hyperparameters/gnn/.
+name: pna
+kind: gnn

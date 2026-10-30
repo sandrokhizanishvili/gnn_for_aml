@@ -1,0 +1,5 @@
+# LightGBM on the 93 inputs the GNN readout sees, no message passing. Values: conf/hyperparameters/lightgbm/.
+defaults:
+  - override /hyperparameters@_global_.hyperparameters: lightgbm/fixed
+name: lightgbm
+kind: tabular

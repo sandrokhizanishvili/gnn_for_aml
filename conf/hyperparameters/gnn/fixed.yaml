@@ -1,0 +1,20 @@
+# The fixed architecture of the thesis (every finished grid run): 2 layers, hidden 128, 20 cosine epochs. Mode train.
+for: gnn
+hidden: 128
+num_layers: 2
+dropout: 0.3
+norm: none              # none | batch | layer, after each message-passing layer
+residual: identity      # identity (h + layer(h)) | linear (Luo et al. 2024) | none
+ffn: false
+num_neighbors: [100, 100]
+batch_size: 8192
+epochs: 20
+lr: 0.001
+weight_decay: 0.00001
+pos_weight: 8.0
+self_loops: true        # GATv2 only
+readout_layers: 2
+readout_width: 1.0
+lr_schedule: cosine     # cosine | constant
+num_workers: 0
+select_metric: pr_auc   # validation metric that picks the best epoch: pr_auc | f1 (the Kaggle grid of the thesis used f1)

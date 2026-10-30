@@ -1,0 +1,10 @@
+# @package _global_
+# The frozen lightgbm winner (recipe.json) x 5 seeds -> outputs/final/lightgbm/<run>/seed-<s>/.
+defaults:
+  - override /model: lightgbm
+  - override /hyperparameters: lightgbm/search
+mode: final
+hydra:
+  sweeper:
+    params:
+      seed: 42,43,44,45,46

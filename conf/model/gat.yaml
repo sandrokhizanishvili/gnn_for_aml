@@ -1,0 +1,3 @@
+# GATv2: GATv2Conv, 4 heads. Values: conf/hyperparameters/gnn/.
+name: gat
+kind: gnn
