@@ -13,33 +13,73 @@ listed values. Configuration by Hydra, everything else plain Python.
 ## Repository structure
 
 ```
-prepare_data.py          data/raw (two IBM files) -> data/: graphs, RWPE encodings, the tuned GFP sheet
-run.py                   one run: mode train | tune | final | check, any model
-aggregate.py             after a GNN search: scores the trials, freezes each winner into recipe.json
+prepare_data.py                   raw IBM files -> data/
+run.py                            one run (mode train | tune | final | check)
+aggregate.py                      after a GNN search: scores the trials, freezes the winners
 conf/
-  config.yaml            one run: mode, seed, node_encoding, gfp_sheet; defaults of every group below
-  prepare_data.yaml      data preparation settings; fx_rates.csv = the frozen USD exchange rates
-  model/                 gin pna gat transformer lightgbm mlp
-  hyperparameters/       gnn/fixed.yaml = the fixed architecture (mode train); gnn/space.yaml = fixed + what the
-                         search changes + the search space. lightgbm/, mlp/: space.yaml only (the never-searched
-                         settings + the search space); their winner lives in recipe.json, never in a yaml
-  feature_config/        c1 .. c7: edge columns in message passing (mp) and at the readout
-  machine/               local kaggle leonardo: data and output paths; leonardo adds the SLURM launcher
-  tuning/                <model>/search.yaml, <model>/final.yaml: the saved search / final-retrain commands
+  config.yaml                     defaults of one run
+  prepare_data.yaml               data preparation settings
+  fx_rates.csv                    frozen USD exchange rates
+  model/
+    gin.yaml
+    pna.yaml
+    gat.yaml
+    transformer.yaml
+    lightgbm.yaml
+    mlp.yaml
+  feature_config/                 which edge columns enter message passing and the readout
+    c1.yaml
+    c2.yaml
+    c3.yaml
+    c4.yaml
+    c5.yaml
+    c6.yaml
+    c7.yaml
+  hyperparameters/
+    gnn/
+      fixed.yaml                  the fixed architecture (mode train)
+      space.yaml                  the GNN search space
+    lightgbm/
+      space.yaml                  LightGBM settings + search space
+    mlp/
+      space.yaml                  MLP settings + search space
+  machine/
+    local.yaml                    this computer
+    kaggle.yaml                   Kaggle paths
+    leonardo.yaml                 Cineca paths + SLURM launcher
+  tuning/                         saved commands
+    gnn/
+      search.yaml                 the GNN search
+      final.yaml                  the final retrain of its winners
+    lightgbm/
+      search.yaml
+      final.yaml
+    mlp/
+      search.yaml
+      final.yaml
 pipeline/
-  data.py                snapshots, column sets, node encodings, the train+val graph, the 93-column matrix
-  gfp.py                 GFP normalisation; the snapml stream used by prepare_data.py
-  metrics.py             threshold sweep, the seven metrics, per-epoch row, threshold sensitivity
-  results.py             run names and folders, results.json, predictions.csv, curves.png, trial logs
-  gnn/                   model.py (template; only the conv differs), train.py (loaders, epoch loop, resume), tune.py (random search)
-  lightgbm/              model.py, train.py, tune.py (successive halving)
-  mlp/                   model.py, train.py, tune.py (random search)
+  data.py                         load the snapshots, encodings, the 93-column matrix
+  gfp.py                          GFP features (snapml stream) and their normalisation
+  metrics.py                      threshold sweep, the seven metrics
+  results.py                      output files: results.json, predictions.csv, curves.png
+  gnn/
+    model.py                      the GNN template; only the convolution differs
+    train.py                      loaders, epoch loop, resume
+    tune.py                       the random search
+  lightgbm/
+    model.py
+    train.py
+    tune.py                       successive halving
+  mlp/
+    model.py
+    train.py
+    tune.py                       the random search
 notebooks/
-  gnn_fixed_architecture_runs.ipynb   Kaggle GPU notebook: one operator x c1..c7
-environment.yml          torch 2.8 + CUDA 12.6, PyG 2.8.1, LightGBM, Hydra (+ SLURM launcher)
-EXPERIMENTS.md           status of every experiment run from this repository
-data/      (not versioned)  raw/, train|val|test_graph.pt, feature_meta.json, rwpe/, gfp_variants/
-outputs/   (not versioned)  train/, tuning/, final/, logs/   (section "Outputs")
+  gnn_fixed_architecture_runs.ipynb   Kaggle GPU runs
+environment.yml                   conda environment
+EXPERIMENTS.md                    status of every experiment
+data/                             not versioned: raw/, the graphs, rwpe/, gfp_variants/
+outputs/                          not versioned: train/, tuning/, final/, logs/
 ```
 
 ## Quick start
