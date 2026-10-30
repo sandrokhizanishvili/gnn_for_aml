@@ -11,7 +11,7 @@ Two settings differ from the Kaggle runs of the sister repository, for every run
 
 ## GNN search — every operator × configs 2 and 4 (Cineca)
 
-Random search over the space of `conf/hyperparameters/gnn/search.yaml` (lr, hidden, norm, residual, dropout,
+Random search over the space of `conf/hyperparameters/gnn/space.yaml` (lr, hidden, norm, residual, dropout,
 weight decay, pos_weight, readout layers and width; depth 1–10 with the fixed neighbour table), 100 trials × 2 seeds
 (42, 43) per pair, 100 epochs at a constant LR, no early stopping, best epoch = argmax of the seed-mean validation
 PR-AUC, winner = highest mean validation PR-AUC (tie-break validation F1). Then a 5-seed retrain (42–46) on train + val
@@ -35,26 +35,29 @@ Differences from the plan of the sister repository (`EXPERIMENTS.md` §2b there)
 | Transformer c2 | ⬜ | ⬜ |
 | Transformer c4 | ⬜ | ⬜ |
 
-Commands: README section 3. Hand-off: Loris clones the repo on Leonardo, creates the environment, runs `mode=check`,
+Commands: README, "Experiments". Hand-off: Loris clones the repo on Leonardo, creates the environment, runs `mode=check`,
 `tuning=gnn/search` (re-run until `aggregate.py` reports every seed done), `aggregate.py`, `tuning=gnn/final`,
 `aggregate.py`, then sends `results_small.tar.gz` and `results_predictions.tar.gz`.
 
 ## Fixed-architecture runs (re-runs with seeds, same code)
 
 The grid (4 × 7), the node-encoding study (configs 4 and 5, rwpe16) and the tuned-GFP study (configs 4 and 5; needs
-`rwpe/` and `gfp_variants/` next to the graphs): one command line each, README section 3. ⬜ not started; the
+`rwpe/` and `gfp_variants/` next to the graphs): one command line each (README, "Experiments"). ⬜ not started; the
 Kaggle results of the sister repository remain the thesis numbers until a seed sweep is decided.
 
 ## Cross-checks without message passing (same code)
 
-`model=lightgbm,mlp seed=42..46` at the frozen thesis winners; `tuning=lightgbm/search` / `tuning=mlp/search` (one
-job each) then `tuning=<model>/final`. ⬜ not started; the Kaggle / local results of the sister repository
-(`Outputs/GBT/`, `Outputs/MLP/`) remain the thesis numbers. The tail-window appendix check of the sister repository
-is not ported (needs the raw CSV and the WSL GFP stream; outside the protocol).
+`tuning=lightgbm/search` / `tuning=mlp/search` (one job each) then `tuning=<model>/final` (the winner of
+`recipe.json` x seeds 42–46). The searches are redone here rather than importing the sister repository's winners
+(LightGBM trial 84, MLP trial 28): every fit now stops on validation PR-AUC, so the trial scores and possibly the
+winner change, and one chain search → final from this repo leaves no second "best" to explain. ⬜ not started; until
+then the Kaggle / local results of the sister repository (`Outputs/GBT/`, `Outputs/MLP/`) remain the thesis numbers.
+The tail-window appendix check of the sister repository is not ported (needs the raw CSV and the WSL GFP stream;
+outside the protocol).
 
 ## Data preparation
 
-`prepare_data.py` rebuilds every input from the two raw IBM files in `data/raw/` (README section 1). Reference
+`prepare_data.py` rebuilds every input from the two raw IBM files in `data/raw/` (README, "Quick start"). Reference
 output: the sister repository's `Data/` (copied into `data/`). Verification status: ✅ full rebuild on 30 Oct 2026
 (3 steps, about 40 minutes with the GFP stream in WSL) compared file by file: `train/val/test_graph.pt` (every
 attribute), the six `rwpe/` files, `gfp_variants/tuned.npy` and `tuned_cols.json` are **bit-identical** to the thesis
@@ -84,3 +87,12 @@ rebuilt graphs equal the thesis graphs.
   operator on configs 2 and 4 at the fixed recipe plus two tuned recipes, identical history, metrics and weights.
 - 2026-10-30 — full data rebuild compared with the thesis files: bit-identical after the exchange-rate parser fix
   (see "Data preparation").
+- 2026-10-30 — LightGBM port checked on the full data against the sister repository's seed-42 run (trial 84, local
+  CPU, 16 threads): the 59 common `history.csv` rows (rounds 25–1475) identical to the last digit, the first 1,380
+  trees of `best.txt` identical text. Only the kept round differs, by the new rule: PR-AUC still rising at the cap,
+  round 1,993 kept (old: lowest weighted validation loss, round 1,380); test F1 0.517 vs 0.525, test PR-AUC 0.484
+  vs 0.482. Check outputs deleted, not a result. Then the tabular `fixed.yaml` files were removed: a searched winner
+  lives only in `recipe.json`, LightGBM and the MLP run as search → final only (`README.md`, `CLAUDE.md`);
+  `hyperparameters/<model>/search.yaml` renamed `space.yaml`. A readability pass over the Python (imports, the
+  tabular input plumbing, three docstrings) was checked on the 40k slice, old tree vs new: every mode of every model
+  (check, GNN train / tune / aggregate / final, LightGBM and MLP search / final), 34 output files identical.

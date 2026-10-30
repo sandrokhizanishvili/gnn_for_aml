@@ -1,6 +1,5 @@
-'''The GNN random search (protocol of Luo et al. 2024): the deterministic trial draw from the yaml search space, the
-trial's recipe, trial scoring from the seeds' histories, the winner, recipe.json, the summary table and plot, and
-the checks aggregate.py runs.'''
+'''The GNN random search (protocol of Luo et al. 2024): the deterministic trial draw, trial scoring from the seeds'
+histories, the winner and recipe.json, the summary table and plot, the checks aggregate.py runs.'''
 import glob
 import itertools
 import json
@@ -8,15 +7,15 @@ import os
 import random
 
 import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+from pipeline.gnn.model import check_recipe
+from pipeline.metrics import METRICS
+from pipeline.results import write_json_atomic
+
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt   # noqa: E402
-import numpy as np                # noqa: E402
-import pandas as pd               # noqa: E402
-
-from pipeline.gnn.model import check_recipe    # noqa: E402
-from pipeline.metrics import METRICS           # noqa: E402
-from pipeline.results import write_json_atomic  # noqa: E402
-
 TRIAL_METRIC_KEYS = [f'{split}_{m}' for split in ('train', 'val') for m in METRICS + ('loss',)]
 SHORT = {'lr': 'lr', 'hidden': 'h', 'dropout': 'd', 'weight_decay': 'wd', 'pos_weight': 'pw', 'readout_layers': 'ro',
          'readout_width': 'rw', 'num_layers': 'l', 'norm': '', 'residual': 'res'}
@@ -80,7 +79,8 @@ def finalise_trial(trial_dir, seeds):
             per_seed[str(s)]['epochs_run'] = int(len(h))
         trial.update(best_epoch=best_epoch, epochs_common=n_common, per_seed=per_seed,
                      thresholds={s: per_seed[s]['threshold'] for s in per_seed},
-                     status='diverged' if trial['diverged_at'] else 'ok', **{f'val_{metric}_mean_curve': mean_curve.tolist()})
+                     status='diverged' if trial['diverged_at'] else 'ok')
+        trial[f'val_{metric}_mean_curve'] = mean_curve.tolist()
         for key in TRIAL_METRIC_KEYS:
             values = np.array([per_seed[str(s)][key] for s in seeds])
             trial[f'{key}_mean'], trial[f'{key}_std'] = float(values.mean()), float(values.std(ddof=1))

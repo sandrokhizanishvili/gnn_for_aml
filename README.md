@@ -1,166 +1,157 @@
-# GNNs for money-laundering detection
+# Graph neural networks for anti-money-laundering detection
 
-Master thesis (Sapienza): do engineered features help graph neural networks find money-laundering patterns in
-transaction networks? Four operators (GIN, PNA, GATv2, graph Transformer) share one template; the knobs are which
-edge features enter message passing and the readout (`feature_config`), a node encoding, the GFP sheet and the
-hyperparameters. Two models without message passing (LightGBM, MLP) are the cross-check on the same inputs.
-Dataset: IBM AML HI-Small, edge classification on cumulative temporal snapshots.
+Master thesis, Sapienza University of Rome.
 
-One config = one run: `python run.py` with overrides trains one model; `python run.py -m` runs every combination
-of the listed values, one job each, in this process on a laptop or Kaggle, or one SLURM task each on Cineca.
-The configuration tool is Hydra; everything else is plain Python.
+Do engineered graph features help graph neural networks find money-laundering patterns in transaction networks?
+Edge classification on the IBM AML HI-Small dataset (Altman et al., NeurIPS 2023), cumulative temporal snapshots,
+60/20/20 temporal split. Four operators (GIN, PNA, GATv2, graph Transformer) share one model template; the
+variables are which edge features enter message passing and the readout (`c1..c7`), a node encoding (RWPE), the
+GFP feature sheet and the hyperparameters. LightGBM and an MLP on the same inputs are the cross-check without
+message passing. One config = one run (`python run.py` + overrides); `-m` runs one job per combination of the
+listed values. Configuration by Hydra, everything else plain Python.
+
+## Repository structure
 
 ```
-prepare_data.py      data/raw (the two IBM files) -> data/ (graphs, RWPE encodings, the tuned GFP sheet)
-run.py               one run: mode train | tune | final | check, any model
-aggregate.py         after a GNN search: scores the trials, freezes each winner into recipe.json, summaries, checks
+prepare_data.py          data/raw (two IBM files) -> data/: graphs, RWPE encodings, the tuned GFP sheet
+run.py                   one run: mode train | tune | final | check, any model
+aggregate.py             after a GNN search: scores the trials, freezes each winner into recipe.json
 conf/
-  config.yaml        one run; groups: hyperparameters, model, feature_config, machine, tuning
-  prepare_data.yaml  data preparation knobs; fx_rates.csv = the USD rates of the thesis (frozen: Cineca is offline)
-  model/             gin pna gat transformer lightgbm mlp
-  hyperparameters/   <model>/fixed.yaml = the values of mode train; <model>/search.yaml = fixed + what the search changes
-  feature_config/    c1 .. c7: which edge columns enter message passing (mp) and the readout
-  machine/           local kaggle leonardo: data and output folders; leonardo adds the SLURM launcher
-  tuning/            <model>/search.yaml and <model>/final.yaml: the saved search and final-retrain commands
+  config.yaml            one run: mode, seed, node_encoding, gfp_sheet; defaults of every group below
+  prepare_data.yaml      data preparation settings; fx_rates.csv = the frozen USD exchange rates
+  model/                 gin pna gat transformer lightgbm mlp
+  hyperparameters/       gnn/fixed.yaml = the fixed architecture (mode train); gnn/space.yaml = fixed + what the
+                         search changes + the search space. lightgbm/, mlp/: space.yaml only (the never-searched
+                         settings + the search space); their winner lives in recipe.json, never in a yaml
+  feature_config/        c1 .. c7: edge columns in message passing (mp) and at the readout
+  machine/               local kaggle leonardo: data and output paths; leonardo adds the SLURM launcher
+  tuning/                <model>/search.yaml, <model>/final.yaml: the saved search / final-retrain commands
 pipeline/
-  data.py            the snapshots, column sets, node encodings, the tuned GFP sheet, the train+val graph, the 93-column matrix
-  gfp.py             GFP normalisation; the snapml stream used by prepare_data.py
-  metrics.py         threshold sweep, the seven metrics, the per-epoch row, threshold sensitivity
-  results.py         run names and folders, results.json, predictions.csv, curves.png, config.yaml, trial logs
-  gnn/               model.py (the template; only the conv differs) train.py (loaders, epoch loop, resume) tune.py (the random search)
-  lightgbm/          model.py train.py tune.py (successive halving)
-  mlp/               model.py train.py tune.py (random search)
+  data.py                snapshots, column sets, node encodings, the train+val graph, the 93-column matrix
+  gfp.py                 GFP normalisation; the snapml stream used by prepare_data.py
+  metrics.py             threshold sweep, the seven metrics, per-epoch row, threshold sensitivity
+  results.py             run names and folders, results.json, predictions.csv, curves.png, trial logs
+  gnn/                   model.py (template; only the conv differs), train.py (loaders, epoch loop, resume), tune.py (random search)
+  lightgbm/              model.py, train.py, tune.py (successive halving)
+  mlp/                   model.py, train.py, tune.py (random search)
+notebooks/
+  gnn_fixed_architecture_runs.ipynb   Kaggle GPU notebook: one operator x c1..c7
+environment.yml          torch 2.8 + CUDA 12.6, PyG 2.8.1, LightGBM, Hydra (+ SLURM launcher)
+EXPERIMENTS.md           status of every experiment run from this repository
+data/      (not versioned)  raw/, train|val|test_graph.pt, feature_meta.json, rwpe/, gfp_variants/
+outputs/   (not versioned)  train/, tuning/, final/, logs/   (section "Outputs")
 ```
 
-## 1. Setup
+## Quick start
 
-```bash
-git clone <this repo> gnn_for_aml && cd gnn_for_aml
-conda env create -p <env path> -f environment.yml        # torch 2.8 + CUDA 12.6, PyG 2.8.1, LightGBM, Hydra
-```
+1. Environment
+   ```bash
+   git clone https://github.com/sandrokhizanishvili/gnn_for_aml.git && cd gnn_for_aml
+   conda env create -p <env path> -f environment.yml
+   ```
+2. Data: put `HI-Small_Trans.csv` and `HI-Small_accounts.csv` (Kaggle, "IBM Transactions for Anti Money
+   Laundering") in `data/raw/`, then
+   ```bash
+   python prepare_data.py                 # graphs -> rwpe -> gfp_tuned; a finished step is skipped
+   python prepare_data.py step=rwpe       # one step
+   ```
+   The GFP step needs IBM `snapml`. Linux: `pip install snapml`, set `gfp.python=''`. Windows: the step runs in
+   WSL (`python3 -m venv ~/gfp_env && ~/gfp_env/bin/pip install 'numpy<2' snapml` once). The rebuild reproduces the
+   thesis data bit for bit (`EXPERIMENTS.md`, "Data preparation"). The prepared files are also the Kaggle datasets
+   `sandrokhizanishvili/hi-small-gnn`, `hi-small-rwpe`, `hi-small-gfp-tuned`.
+3. Check, then one run
+   ```bash
+   python run.py mode=check                          # versions, device, one forward/backward pass per operator
+   python run.py model=gin feature_config=c5         # one fixed-architecture run
+   ```
+4. Result: `outputs/train/gin/gin_mp-base_readout-full_dir-in/seed-42/results.json` (section "Outputs").
 
-**Data.** `data/` is not versioned. Either copy the prepared files (`train/val/test_graph.pt`, `feature_meta.json`,
-`rwpe/`, `gfp_variants/`) into it, or build them from the raw files: put `HI-Small_Trans.csv` and
-`HI-Small_accounts.csv` (Kaggle, "IBM Transactions for Anti Money Laundering") in `data/raw/` and run
+## Experiments
 
-```bash
-python prepare_data.py                 # graphs -> rwpe -> gfp_tuned, hours on CPU; a finished step is skipped
-python prepare_data.py step=rwpe       # one step
-```
+One line each; a single run is the same line without the lists. Every run is idempotent and resumable: a finished
+run returns at once, an interrupted one continues from `resume.pt`. Re-run the same command until everything is done.
 
-The GFP step needs IBM `snapml`, whose Windows build cannot create the Graph Feature Preprocessor: on Windows
-`prepare_data.yaml` runs `pipeline/gfp.py` inside WSL (`python3 -m venv ~/gfp_env && ~/gfp_env/bin/pip install
-'numpy<2' snapml` once); on Linux set `gfp.python=''` and `pip install snapml`. A rebuild reproduces the thesis
-files bit for bit (`EXPERIMENTS.md`, "Data preparation").
-
-## 2. Where to run
-
-**Laptop.** `machine=local` is the default: `data/` and `outputs/` inside the repo, GPU if torch sees one, else CPU
-(fine for LightGBM, the MLP and short checks; a GNN run needs a GPU). Multiruns (`-m`) run one job after another.
-
-**Kaggle (GNN runs).** `notebooks/gnn_fixed_architecture_runs.ipynb` is the ready notebook (set `MODEL`, Run All). The prepared files are already Kaggle datasets: `sandrokhizanishvili/hi-small-gnn` (the
-graphs and `feature_meta.json`), `hi-small-rwpe` and `hi-small-gfp-tuned`. Add them as inputs of a GPU notebook, then:
-
-```
-!pip uninstall -y torch torchvision torchaudio torch-scatter torch-sparse pyg_lib
-!pip install torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
-!pip install torch-scatter torch-sparse torch-cluster -f https://data.pyg.org/whl/torch-2.8.0+cu126.html
-!pip install torch_geometric lightgbm==4.6.0 hydra-core==1.3.2
-!git clone <this repo> gnn_for_aml
-%cd gnn_for_aml
-!python run.py model=gin feature_config=c5 machine=kaggle
-```
-
-`machine=kaggle` reads the graphs from the `hi-small-gnn` dataset. The node-encoding and tuned-GFP studies also
-need `rwpe/` and `gfp_variants/` next to the graphs; link the three datasets into one folder once per session:
-
-```
-!mkdir -p /kaggle/working/data && ln -sf /kaggle/input/datasets/sandrokhizanishvili/hi-small-gnn/* /kaggle/working/data/
-!ln -sfn /kaggle/input/datasets/sandrokhizanishvili/hi-small-rwpe /kaggle/working/data/rwpe
-!ln -sfn /kaggle/input/datasets/sandrokhizanishvili/hi-small-gfp-tuned /kaggle/working/data/gfp_variants
-!python run.py -m model=gin,pna,gat,transformer feature_config=c4,c5 node_encoding=rwpe16 machine=kaggle paths.data=/kaggle/working/data
-```
-
-Any command of section 3 works the same way with `machine=kaggle` added. Results land in
-`/kaggle/working/outputs/`; download that folder (or zip it without `*.pt` and `predictions.csv`) and unpack it into
-`outputs/` locally. A finished run is skipped on a rerun, so a multirun that outlives the session continues where it
-stopped. The searches (1,600 GNN jobs) are Cineca work.
-
-**Cineca (Leonardo Booster).** Data in `$WORK/aml_thesis/data`, the environment in `$WORK/aml_thesis/env`
-(`conda env create -p $WORK/aml_thesis/env -f environment.yml` on a login node), results in
-`$WORK/aml_thesis/outputs`. Put your project account once in your shell: `echo 'export ACCOUNT=<account>' >> ~/.bashrc`
-(`saldo -b` lists it). Every command is typed on a login node from the repo folder with `machine=leonardo`; the
-jobs go to SLURM by themselves (partition `boost_usr_prod`, one GPU per task, 24 h, up to
-`hydra.launcher.array_parallelism` tasks at once; lower it with `hydra.launcher.array_parallelism=8` if your
-per-user GPU limit is smaller). Job logs: `outputs/logs/<timestamp>/jobs/`.
-
-## 3. Commands
-
-Every block of `EXPERIMENTS.md` is one line. A single run is the same line without the lists.
-
-| Command | What |
-|---|---|
-| `python run.py mode=check` | environment test: versions, the device, one forward / backward pass per operator |
-| `python run.py model=gin feature_config=c5` | one run at the fixed hyperparameters (`hyperparameters/gnn/fixed.yaml`) |
-| `python run.py -m model=gin,pna,gat,transformer feature_config=c1,c2,c3,c4,c5,c6,c7` | the fixed-architecture grid (28 runs; add `seed=42,43,44,45,46` for a seed sweep) |
-| `python run.py -m model=gin,pna,gat,transformer feature_config=c4,c5 node_encoding=rwpe16` | the node-encoding study (8 runs) |
-| `python run.py -m model=gin,pna,gat,transformer feature_config=c4,c5 gfp_sheet=tuned` | the tuned-GFP study (8 runs; needs `gfp_variants/`) |
-| `python run.py -m model=lightgbm,mlp seed=42,43,44,45,46` | the cross-check without message passing at the frozen thesis winners (10 runs) |
-| `python run.py -m tuning=gnn/search machine=leonardo` | the GNN random search: 100 trials x 2 seeds x (4 operators x configs 2, 4) = 1,600 jobs |
-| `python aggregate.py machine=leonardo` | scores the finished trials, checks them, freezes each pair's winner into `recipe.json` |
-| `python run.py -m tuning=gnn/final machine=leonardo` | the 5-seed retrain of every frozen winner (40 jobs) |
-| `python run.py -m tuning=lightgbm/search` then `tuning=lightgbm/final` | the LightGBM halving search (one job), then its winner x 5 seeds; same with `mlp` |
-
-Runs are idempotent: a finished run returns at once, an interrupted one continues from `resume.pt`, a job cut by the
-24 h limit is requeued by SLURM and resumes. So **run the same command again** until everything is done
-(`squeue -u $USER` shows what is queued or running).
-
-`fixed` vs `search` (`conf/hyperparameters/<model>/`):
-
-| File | Holds | Used by |
+| Experiment | Command | Output |
 |---|---|---|
-| `fixed.yaml` | GNNs: the a-priori fixed architecture of the thesis. LightGBM, MLP: the frozen winner of the thesis search | mode train |
-| `search.yaml` | `fixed` + what the search changes + `search:` (space, trials, seeds) | modes tune and final, `aggregate.py` |
+| Fixed-architecture grid (28 runs) | `python run.py -m model=gin,pna,gat,transformer feature_config=c1,c2,c3,c4,c5,c6,c7` | `outputs/train/<model>/` |
+| Seed sweep of the grid | add `seed=42,43,44,45,46` | `outputs/train/<model>/<run>/seed-<s>/` |
+| Node-encoding study (8 runs) | `python run.py -m model=gin,pna,gat,transformer feature_config=c4,c5 node_encoding=rwpe16` | `outputs/train/<model>/*_enc-rwpe16/` |
+| Tuned-GFP study (8 runs) | `python run.py -m model=gin,pna,gat,transformer feature_config=c4,c5 gfp_sheet=tuned` | `outputs/train/<model>/*_gfp-tuned/` |
+| GNN random search (1,600 jobs) | `python run.py -m tuning=gnn/search machine=leonardo` | `outputs/tuning/<model>/<run>/t<id>/` |
+| Freeze the winners | `python aggregate.py machine=leonardo` | `outputs/tuning/<model>/<run>/recipe.json` |
+| Final retrain of the winners (40 jobs) | `python run.py -m tuning=gnn/final machine=leonardo` | `outputs/final/<model>/` |
+| Cross-check without message passing: LightGBM / MLP search (one job), then its winner x 5 seeds | `python run.py -m tuning=lightgbm/search`, then `python run.py -m tuning=lightgbm/final` (same with `mlp`) | `outputs/tuning/lightgbm/`, `outputs/final/lightgbm/` |
 
-## 4. Outputs
+## Where to run
 
-```
-outputs/train/<model>/<run>/seed-<s>/        results.json, history.csv, curves.png, predictions.csv, best.pt (LightGBM: best.txt), config.yaml
-outputs/tuning/<model>/<run>/t<id>/seed-<s>/ done.json, history.csv                 (GNN trials: no test loader, no checkpoints)
-outputs/tuning/<model>/<run>/                t<id>/trial.json, recipe.json, trials_summary.csv, tuning_curves.png
-                                             LightGBM, MLP: configs.json, trials.csv, recipe.json
-outputs/final/<model>/<run>/seed-<s>/        results.json, history.csv, curves.png, predictions.csv, final.pt, config.yaml
-outputs/final/<model>/<run>/                 batch_summary_final.csv, seed_summary_final.csv
-outputs/logs/<timestamp>/                    the overrides of one launch; on Cineca the job logs
-```
+**Laptop** (`machine=local`, default): `data/` and `outputs/` inside the repository; GPU if available, else CPU.
+CPU suffices for LightGBM, the MLP and `mode=check`; a GNN run needs a GPU. Multiruns run one job after another.
 
-`<run>` = `<model>_mp-<mp>_readout-<readout>_dir-in[_enc-rwpe16][_gfp-tuned]` (`lightgbm_readout-full`,
-`mlp_readout-full`). `results.json` holds the seven metrics (F1, precision, recall, PR-AUC, ROC-AUC, precision and
-recall in the top 5 %) on train, val and test at the validation-chosen threshold, plus `threshold`, `best_epoch`,
-`params`, `invariant_params` and the hyperparameters.
+**Kaggle** (GNN runs): open `notebooks/gnn_fixed_architecture_runs.ipynb` in a GPU notebook with the dataset
+`sandrokhizanishvili/hi-small-gnn` as input, set `MODEL`, Run All. Any command above works there with
+`machine=kaggle`. The node-encoding and tuned-GFP studies also need the datasets `hi-small-rwpe` and
+`hi-small-gfp-tuned` linked as `rwpe/` and `gfp_variants/` next to the graphs (`paths.data=<that folder>`).
+Download `/kaggle/working/outputs/` into `outputs/` locally.
 
-To send results back from Cineca (from `$WORK/aml_thesis`):
+**Cineca** (Leonardo Booster, SLURM): add `machine=leonardo` on a login node; jobs are submitted by the launcher
+(partition `boost_usr_prod`, one GPU per task, 24 h, requeued and resumed after the limit).
+
+| Setting | Value |
+|---|---|
+| Data, environment, outputs | `$WORK/aml_thesis/data`, `$WORK/aml_thesis/env`, `$WORK/aml_thesis/outputs` |
+| Environment | `conda env create -p $WORK/aml_thesis/env -f environment.yml` |
+| Project account | `export ACCOUNT=<account>` in `~/.bashrc` (`saldo -b` lists it) |
+| Parallel tasks | `hydra.launcher.array_parallelism=<n>` if the per-user GPU limit is smaller |
+| Job logs | `outputs/logs/<timestamp>/jobs/` |
+
+Results back from Cineca (from `$WORK/aml_thesis`):
 ```bash
 tar -czf results_small.tar.gz --exclude='*.pt' --exclude='predictions.csv' --exclude='logs' outputs
 tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 ```
 
-## 5. Protocol in short
+## Outputs
 
-- Fixed architecture (`hyperparameters/gnn/fixed.yaml`): 2 layers, hidden 128, dropout 0.3, [100, 100] neighbours,
-  batch 8,192, Adam 1e-3 cosine, 20 epochs, pos_weight 8. Only the edge-projection and readout widths change between
-  feature configurations; `invariant_params` must be identical within a family (GIN 67,587, GATv2 67,585,
-  PNA 427,265, Transformer 133,121).
-- Threshold swept on validation every epoch (best F1); best epoch = the best validation PR-AUC (`select_metric`;
-  the Kaggle runs of the sister repository used F1); test scored exactly once with that checkpoint and threshold.
-  Every metric on all three splits.
-- GNN search (`hyperparameters/gnn/search.yaml`, protocol of Luo et al. 2024): 100 epochs at a constant LR, no early
-  stopping, best epoch = argmax of the seed-mean validation PR-AUC, winner = highest mean validation PR-AUC; the final
-  retrain uses train + val, the frozen epoch and the mean of the two tuning thresholds. Trials are drawn
-  deterministically from the yaml space (seed 20261022); a trial that does not fit in GPU memory is recorded `oom`
-  and cannot win.
-- Cross-checks without message passing (`hyperparameters/lightgbm/`, `hyperparameters/mlp/`): the 93 inputs the GNN
-  readout sees (81 edge columns + the 6 + 6 entity one-hots), train rows only, threshold swept on validation, test
-  once. LightGBM: successive halving (100 configurations, eta 2, first round on the most recent 10 % of the train
-  rows), every fit early-stopped on validation PR-AUC, ranked by validation PR-AUC; MLP: 100 unique uniform draws,
-  Adam at a constant LR, best epoch by validation PR-AUC, patience 10. `invariant_params` is 0 for both.
+```
+outputs/train/<model>/<run>/seed-<s>/         results.json, history.csv, curves.png, predictions.csv, best.pt, config.yaml
+outputs/tuning/<model>/<run>/t<id>/seed-<s>/  done.json, history.csv              (GNN trials: no test loader, no checkpoints)
+outputs/tuning/<model>/<run>/                 t<id>/trial.json, recipe.json, trials_summary.csv, tuning_curves.png
+                                              LightGBM, MLP: configs.json, trials.csv, recipe.json
+outputs/final/<model>/<run>/seed-<s>/         results.json, history.csv, curves.png, predictions.csv, final.pt, config.yaml
+                                              (LightGBM: best.txt, MLP: best.pt instead of final.pt)
+outputs/final/<model>/<run>/                  batch_summary_final.csv, seed_summary_final.csv
+outputs/logs/<timestamp>/                     overrides of one launch; on Cineca the job logs
+```
+
+`<run>` = `<model>_mp-<mp>_readout-<readout>_dir-in[_enc-rwpe16][_gfp-tuned]`; tabular models:
+`lightgbm_readout-full`, `mlp_readout-full`. `results.json` holds the seven metrics (F1, precision, recall, PR-AUC,
+ROC-AUC, precision and recall in the top 5 %) on train, val and test at the validation-chosen threshold, plus
+`threshold`, `best_epoch`, `params`, `invariant_params` and the hyperparameters.
+
+## Protocol
+
+| Fixed architecture (`hyperparameters/gnn/fixed.yaml`) | |
+|---|---|
+| Layers, hidden, dropout | 2, 128, 0.3 |
+| Neighbours, batch | [100, 100], 8,192 edges |
+| Optimiser, epochs | Adam 1e-3 cosine, 20 epochs, pos_weight 8 |
+| `invariant_params` (identical within a family) | GIN 67,587 · GATv2 67,585 · PNA 427,265 · Transformer 133,121 |
+
+- Threshold swept on validation every epoch (best F1); best epoch = best validation PR-AUC; test scored exactly
+  once with that checkpoint and threshold; every metric on all three splits.
+- GNN search (`hyperparameters/gnn/space.yaml`, protocol of Luo et al. 2024): 100 trials × 2 seeds per operator
+  and feature configuration (c2, c4), 100 epochs at a constant learning rate, no early stopping; best epoch = argmax
+  of the seed-mean validation PR-AUC, winner = highest mean validation PR-AUC. Final retrain on train + val at the
+  frozen epoch, 5 seeds, threshold = mean of the two tuning thresholds. Trials are drawn deterministically from the
+  yaml space; a trial that does not fit in GPU memory is recorded `oom` and cannot win.
+- Cross-checks (`hyperparameters/lightgbm/`, `hyperparameters/mlp/`): the 93 inputs the GNN readout sees (81 edge
+  columns + 6 + 6 entity one-hots), train rows only, same threshold rule. LightGBM: successive halving (100
+  configurations, eta 2), every fit early-stopped on validation PR-AUC. MLP: 100 random trials, best epoch by
+  validation PR-AUC, patience 10.
+
+## Documents
+
+- `EXPERIMENTS.md` — status and pointers of every experiment run from this repository.
+- `CLAUDE.md` — the rules of this repository (naming, configuration, protocol, verification).
+- `../gnn_for_fraudulent_patterns` — the notebook-era thesis repository: finished Kaggle runs, `Progress_Report.md`.
+- `LICENSE` — MIT.

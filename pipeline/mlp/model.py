@@ -26,13 +26,14 @@ class MLP(nn.Module):
 
     def __init__(self, in_dim, k):
         super().__init__()
-        widths = [max(16, k['hidden'] >> i) for i in range(k['depth'])] if k['shape'] == 'funnel' else [k['hidden']] * k['depth']
+        hidden, depth = k['hidden'], k['depth']
+        widths = [max(16, hidden // 2 ** i) for i in range(depth)] if k['shape'] == 'funnel' else [hidden] * depth
         layers, last = [], in_dim
         if k['shape'] == 'resnet':
-            layers.append(nn.Linear(in_dim, widths[0]))
-            self.blocks = nn.ModuleList(nn.Sequential(nn.Linear(widths[0], widths[0]), make_norm(k['norm'], widths[0]), nn.ReLU(),
-                                                      nn.Dropout(k['dropout']), nn.Linear(widths[0], widths[0])) for _ in widths)
-            last = widths[0]
+            layers.append(nn.Linear(in_dim, hidden))
+            self.blocks = nn.ModuleList(nn.Sequential(nn.Linear(hidden, hidden), make_norm(k['norm'], hidden), nn.ReLU(),
+                                                      nn.Dropout(k['dropout']), nn.Linear(hidden, hidden)) for _ in range(depth))
+            last = hidden
         else:
             self.blocks = None
             for w in widths:
@@ -49,5 +50,7 @@ class MLP(nn.Module):
 
 @torch.no_grad()
 def predict_mlp(model, X, rows, chunk=65_536):
+    '''Probabilities of the rows [rows.start, rows.stop), in chunks that fit the device.'''
     model.eval()
-    return torch.cat([torch.sigmoid(model(X[i:min(i + chunk, rows.stop)])).cpu() for i in range(rows.start, rows.stop, chunk)]).numpy()
+    probs = [torch.sigmoid(model(X[i:min(i + chunk, rows.stop)])).cpu() for i in range(rows.start, rows.stop, chunk)]
+    return torch.cat(probs).numpy()

@@ -4,7 +4,8 @@
     python run.py -m model=gin,pna feature_config=c1,c2,c3          a multirun
     python run.py -m tuning=gnn/search machine=leonardo             every (model, feature_config, trial, seed) of the GNN search
     python run.py -m tuning=gnn/final machine=leonardo              the 5-seed retrain of every frozen winner
-    python run.py model=lightgbm seed=43                            a cross-check without message passing (lightgbm | mlp)
+    python run.py -m tuning=lightgbm/search                         the LightGBM halving search (one job; same with mlp)
+    python run.py -m tuning=lightgbm/final                          its frozen winner (recipe.json) x 5 seeds
     python run.py mode=check machine=leonardo                       environment test on a GPU node
 
 A finished run (results.json / done.json / recipe.json) returns at once; an interrupted one continues from resume.pt.
@@ -119,34 +120,33 @@ def final_gnn(cfg, name, out_dir, graphs, col_sets, node_dim, frozen):
 # ---------------------------------------------------------------- tabular modes (lightgbm | mlp)
 
 def tabular_inputs(cfg, graphs):
-    '''The 93-column matrix; for the MLP standardised and on the device.'''
-    hp, X, y, rows = cfg['hyperparameters'], *data.load_matrix(graphs)
+    '''The 93-column matrix X, the labels y and the row slices per split; for the MLP, X standardised and on the device.'''
+    X, y, rows = data.load_matrix(graphs)
     if cfg['model']['name'] == 'mlp':
-        X = torch.from_numpy(mlp_model.standardise(X, rows, hp['std_floor'])).to(gnn_model.device)
-        return X, y, torch.from_numpy(y).float().to(gnn_model.device), rows
-    return X, y, y, rows
+        X = torch.from_numpy(mlp_model.standardise(X, rows, cfg['hyperparameters']['std_floor'])).to(gnn_model.device)
+    return X, y, rows
 
 
 def tune_tabular(cfg, out_dir, graphs):
     '''The search of one tabular model -> recipe.json (the winner).'''
     hp, op = cfg['hyperparameters'], cfg['model']['name']
-    X, y, y_fit, rows = tabular_inputs(cfg, graphs)
-    winner = lgb_tune.successive_halving(X, y, rows, hp, out_dir) if op == 'lightgbm' else mlp_tune.random_search(X, y_fit, rows, hp, out_dir)
+    X, y, rows = tabular_inputs(cfg, graphs)
+    winner = lgb_tune.successive_halving(X, y, rows, hp, out_dir) if op == 'lightgbm' else mlp_tune.random_search(X, y, rows, hp, out_dir)
     print(f"winner: trial {winner['trial']} val PR-AUC {winner['val_pr_auc']:.4f} | {winner['params']}")
     results.write_json_atomic(f'{out_dir}/recipe.json', dict(winner, operator=op, search=hp['search'], test_split_loaded='test' in graphs))
 
 
 def train_tabular(cfg, name, out_dir, graphs, point, extra):
-    '''One fit at `point` (the fixed values, or the frozen winner in mode final), scored on every split.'''
+    '''One fit at `point`, the frozen winner of recipe.json (mode final), scored on every split.'''
     hp, op, seed = cfg['hyperparameters'], cfg['model']['name'], cfg['seed']
-    X, y, y_fit, rows = tabular_inputs(cfg, graphs)
+    X, y, rows = tabular_inputs(cfg, graphs)
     if op == 'lightgbm':
         booster, history, best_epoch = lgb_train.fit_final_booster(point, hp, X, y, rows, seed)
         threshold = next(h['threshold'] for h in history if h['epoch'] == best_epoch)
         prob, n_params = lgb_model.predict_booster(booster, X, best_epoch), best_epoch
         booster.save_model(f'{out_dir}/best.txt', num_iteration=best_epoch)
     else:
-        model, history, best_epoch = mlp_train.fit_mlp(point, hp, X, y_fit, rows, seed)
+        model, history, best_epoch = mlp_train.fit_mlp(point, hp, X, y, rows, seed)
         threshold = history[best_epoch - 1]['threshold']
         prob, n_params = mlp_model.predict_mlp(model, X, slice(0, len(y))), gnn_model.count_params(model)
         torch.save(model.state_dict(), f'{out_dir}/best.pt')
@@ -198,8 +198,9 @@ def main(cfg):
         return check(cfg)
     hp, model, mode = cfg['hyperparameters'], cfg['model'], cfg['mode']
     assert hp['for'] == (model['name'] if model['kind'] == 'tabular' else 'gnn'), f"hyperparameters for {hp['for']}, model {model['name']}"
-    assert mode == 'train' or 'search' in hp, f"mode {mode} needs hyperparameters={hp['for']}/search"
+    assert mode == 'train' or 'search' in hp, f"mode {mode} needs hyperparameters={hp['for']}/space"
     if model['kind'] == 'tabular':
+        assert mode != 'train', f"{model['name']} has no fixed values: run tuning={model['name']}/search, then tuning={model['name']}/final"
         assert cfg['node_encoding'] == 'none', 'the tabular models use the 6 entity one-hots only'
         name = f"{model['name']}_readout-full"
     else:
@@ -220,10 +221,8 @@ def main(cfg):
     if model['kind'] == 'tabular':
         if mode == 'tune':
             return tune_tabular(cfg, out_dir, graphs)
-        if mode == 'final':
-            frozen = json.load(open(f'{tuning_root}/recipe.json'))
-            return train_tabular(cfg, name, out_dir, graphs, frozen['params'], {'trial_id': frozen['trial']})
-        return train_tabular(cfg, name, out_dir, graphs, dict(hp['point']), {})
+        frozen = json.load(open(f'{tuning_root}/recipe.json'))
+        return train_tabular(cfg, name, out_dir, graphs, frozen['params'], {'trial_id': frozen['trial']})
 
     node_dim = data.set_node_encoding(graphs, cfg['node_encoding'], cfg['paths']['data'])
     r = recipe_of(hp)

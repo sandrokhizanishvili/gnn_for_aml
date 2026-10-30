@@ -1,5 +1,5 @@
-# A plain neural net on the same 93 inputs, no message passing. Values: conf/hyperparameters/mlp/.
+# A plain neural net on the same 93 inputs, no message passing. Modes tune and final only (tuning/mlp/).
 defaults:
-  - override /hyperparameters@_global_.hyperparameters: mlp/fixed
+  - override /hyperparameters@_global_.hyperparameters: mlp/space
 name: mlp
 kind: tabular

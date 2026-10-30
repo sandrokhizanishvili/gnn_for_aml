@@ -1,6 +1,5 @@
-'''The prepared data: the three cumulative snapshots, the edge-column sets of the feature configurations, the node
-encodings (RWPE), the tuned GFP sheet, the train + val graph of the final retrain, the 93-column matrix of the
-tabular models. Every file comes from data/ (prepare_data.py).'''
+'''Reading data/ (the output of prepare_data.py): the three cumulative snapshots, the edge-column sets, the node
+encodings, the tuned GFP sheet, the train + val graph of the final retrain, the 93-column matrix of the tabular models.'''
 import json
 import random
 

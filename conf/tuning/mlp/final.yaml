@@ -2,7 +2,6 @@
 # The frozen mlp winner (recipe.json) x 5 seeds -> outputs/final/mlp/<run>/seed-<s>/.
 defaults:
   - override /model: mlp
-  - override /hyperparameters: mlp/search
 mode: final
 hydra:
   sweeper:

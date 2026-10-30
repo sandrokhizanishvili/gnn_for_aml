@@ -1,7 +1,11 @@
-# The random search of the thesis: 100 unique uniform draws (trial 0 = the hand-picked start), one seed each, ranked
-# by validation PR-AUC. Modes tune and final.
-defaults:
-  - mlp/fixed@_here_
+# A plain neural net on the same 93 inputs as LightGBM, edge columns standardised on the train rows: the never-searched
+# settings and the random search of the thesis: 100 unique uniform draws (trial 0 = the hand-picked start), one seed
+# each, ranked by validation PR-AUC. The winner lives only in recipe.json (mode tune writes it, mode final reads it);
+# there is no mode train for this model.
+for: mlp
+epochs: 60                   # cap; every fit stops after `patience` epochs without a better validation PR-AUC
+patience: 10
+std_floor: 0.001             # floor of the train std in the standardisation
 search:
   n_trials: 100
   seeds: [42]

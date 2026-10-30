@@ -4,17 +4,17 @@ import json
 import os
 
 import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt   # noqa: E402
-import numpy as np                # noqa: E402
-import pandas as pd               # noqa: E402
-import torch                      # noqa: E402
-from omegaconf import OmegaConf   # noqa: E402
-from sklearn.metrics import precision_recall_curve   # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+from omegaconf import OmegaConf
+from sklearn.metrics import precision_recall_curve
 
-from pipeline.data import SPLITS       # noqa: E402
-from pipeline.metrics import METRICS   # noqa: E402
+from pipeline.data import SPLITS
+from pipeline.metrics import METRICS
 
+matplotlib.use('Agg')   # files only, never a window
 MODE_DIR = {'train': 'train', 'tune': 'tuning', 'final': 'final'}
 
 
@@ -101,7 +101,8 @@ def plot_curves(history, title, path, best_epoch=None, test=None):
     axes = axes.flatten()
     fig.suptitle(title, fontweight='bold')
     for axis, key in zip(axes, panels):
-        for col, marker in ((f'train_{key}', 'o'), (f'val_{key}', 's'), (key, 'd'), ('train_loss_batches' if key == 'loss' else '', 'x')):
+        series = [f'train_{key}', f'val_{key}', key] + (['train_loss_batches'] if key == 'loss' else [])
+        for col, marker in zip(series, 'osdx'):
             if col in df:
                 axis.plot(df['epoch'], df[col], marker=marker, label=col)
         if best_epoch:

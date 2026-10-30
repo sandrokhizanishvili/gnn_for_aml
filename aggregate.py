@@ -1,7 +1,7 @@
 '''The login-node step of the GNN search (no GPU, minutes): scores every trial whose seeds are done, runs the checks,
 freezes the winner of every (model, feature_config) pair into recipe.json, writes the summaries, prints the progress.
 
-    python aggregate.py machine=leonardo        (same config as run.py with hyperparameters=gnn/search)
+    python aggregate.py machine=leonardo        (same config as run.py with hyperparameters=gnn/space)
 '''
 import glob
 import json
@@ -73,7 +73,7 @@ def final_pair(cfg, model, feature_config):
 
 def main():
     with initialize(version_base=None, config_path='conf'):   # the jobs' config, with the search file selected
-        cfg = OmegaConf.to_container(compose(config_name='config', overrides=['hyperparameters=gnn/search'] + sys.argv[1:]), resolve=True)
+        cfg = OmegaConf.to_container(compose(config_name='config', overrides=['hyperparameters=gnn/space'] + sys.argv[1:]), resolve=True)
     hp = cfg['hyperparameters']
     s, base = hp['search'], {k: hp[k] for k in RECIPE_KEYS}
     trials_drawn = tune.draw_trials(s)

@@ -1,5 +1,5 @@
-# LightGBM on the 93 inputs the GNN readout sees, no message passing. Values: conf/hyperparameters/lightgbm/.
+# LightGBM on the 93 inputs the GNN readout sees, no message passing. Modes tune and final only (tuning/lightgbm/).
 defaults:
-  - override /hyperparameters@_global_.hyperparameters: lightgbm/fixed
+  - override /hyperparameters@_global_.hyperparameters: lightgbm/space
 name: lightgbm
 kind: tabular

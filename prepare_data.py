@@ -87,9 +87,9 @@ def gfp_colnames(p):
     for pattern in ('fan', 'degree', 'scatter-gather', 'temp-cycle', 'lc-cycle'):
         if p[pattern]:
             bins = p[f'{pattern}_bins']
-            edges_ = [f'{lo}-{hi}' for lo, hi in zip(bins, bins[1:])] + [f'{bins[-1]}-inf']
+            ranges = [f'{lo}-{hi}' for lo, hi in zip(bins, bins[1:])] + [f'{bins[-1]}-inf']
             sides = ['in', 'out'] if pattern in ('fan', 'degree') else [None]
-            cols += [f'{pattern}_{s}_bins_{e}' if s else f'{pattern}_bins_{e}' for s in sides for e in edges_]
+            cols += [f'{pattern}_{s}_bins_{r}' if s else f'{pattern}_bins_{r}' for s in sides for r in ranges]
     for who in ('source', 'dest'):
         for direction in ('out', 'in'):
             cols += [f'{who}_{names[k]}_{direction}' for k in p['vertex_stats_feats'] if k <= 2]

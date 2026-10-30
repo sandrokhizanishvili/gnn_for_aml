@@ -1,0 +1,27 @@
+# LightGBM on the 93 inputs (81 edge columns + the 6 + 6 entity one-hots): the never-searched settings and the halving
+# search of the thesis (Altman et al. 2023 Appendix C): 100 configurations, the best half kept each round, first round on
+# the most recent 10 % of the train rows, ranked by validation PR-AUC. The winner lives only in recipe.json (mode tune
+# writes it, mode final reads it); there is no mode train for this model.
+for: lightgbm
+settings:                    # never searched
+  objective: binary
+  bagging_freq: 1
+  verbose: -1
+early_stopping: 100          # rounds without a higher validation PR-AUC; the kept round is the best one
+check_every: 25              # rounds between the train / val scores of history.csv
+search:
+  n_configs: 100
+  eta: 2
+  first_fraction: 0.1
+  select: val_pr_auc
+  draw_seed: 42
+  space:                     # [kind, low, high]; kind int | float | log. num_round is fixed but stays in the draw order.
+    num_round: [int, 2000, 2000]
+    num_leaves: [int, 7, 63]
+    learning_rate: [log, 0.01, 0.05]
+    min_data_in_leaf: [int, 200, 2000]
+    feature_fraction: [float, 0.3, 0.8]
+    bagging_fraction: [float, 0.5, 1.0]
+    lambda_l1: [log, 0.01, 10.0]
+    lambda_l2: [log, 1.0, 100.0]
+    scale_pos_weight: [float, 1.0, 10.0]

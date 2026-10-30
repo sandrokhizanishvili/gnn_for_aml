@@ -1,7 +1,7 @@
 # @package _global_
 # The 5-seed retrain of every frozen GNN winner (after aggregate.py wrote recipe.json): 8 pairs x 5 seeds = 40 jobs.
 defaults:
-  - override /hyperparameters: gnn/search
+  - override /hyperparameters: gnn/space
 mode: final
 hydra:
   sweeper:

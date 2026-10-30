@@ -13,13 +13,14 @@ from pipeline.mlp.model import MLP, predict_mlp
 
 
 def fit_mlp(knobs, hp, X, y, rows, seed):
-    '''Returns (model, history, best epoch).'''
+    '''X: the standardised matrix on the device; y: the 0/1 labels (numpy). Returns (model, history, best epoch).'''
     set_seed(seed)
     model = MLP(X.shape[1], knobs).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=knobs['lr'], weight_decay=knobs['weight_decay'])
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(float(knobs['pos_weight']), device=device))
     tr, va = rows['train'], rows['val']
-    y_train, y_val = y[tr].cpu().numpy().astype(int), y[va].cpu().numpy().astype(int)
+    y_train, y_val = y[tr].astype(int), y[va].astype(int)
+    y = torch.from_numpy(y).float().to(device)
     print(f"{knobs['shape']} hidden {knobs['hidden']} depth {knobs['depth']} | params {count_params(model):,} | seed {seed}")
     history, best_epoch, best_score, best_state = [], 0, -1.0, None
     for epoch in range(1, hp['epochs'] + 1):

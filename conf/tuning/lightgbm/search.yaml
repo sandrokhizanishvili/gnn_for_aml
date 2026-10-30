@@ -2,5 +2,4 @@
 # The lightgbm halving search, one job -> outputs/tuning/lightgbm/<run>/recipe.json.
 defaults:
   - override /model: lightgbm
-  - override /hyperparameters: lightgbm/search
 mode: tune

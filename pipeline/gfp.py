@@ -1,7 +1,5 @@
-'''GFP = the graph-pattern features of IBM snapml (fan-in / fan-out, scatter-gather, cycles, vertex statistics).
-stream() runs the preprocessor over a time-sorted edge list in small batches, so an edge sees only earlier batches
-and its own (one transform over everything would let every edge see the future); normalise_gfp_sheet() is the
-train-fit normalisation of the data preparation, also applied to the tuned sheet at load time.
+'''GFP = the graph-pattern features of IBM snapml (fan-in / fan-out, scatter-gather, cycles, vertex statistics),
+streamed over the time-sorted edges in small batches so no edge sees the future, and their train-fit normalisation.
 
     python pipeline/gfp.py <input.npy> <params.json> <output.npy> <batch>      (numpy + snapml only; WSL on Windows)
 input float64 [n, 5] = txn_id, src_idx, dst_idx, seconds, amount_usd;  output float32 [n, 5 + features]'''
