@@ -75,7 +75,8 @@ pipeline/
     train.py
     tune.py                       the random search
 notebooks/
-  gnn_fixed_architecture_runs.ipynb   Kaggle GPU runs
+  gnn_fixed_architecture_runs.ipynb      Kaggle GPU runs: one operator x c1..c7
+  gnn_fixed_architecture_results.ipynb   tables and plots of the downloaded runs (outputs/train/)
 environment.yml                   conda environment
 EXPERIMENTS.md                    status of every experiment
 data/                             not versioned: raw/, the graphs, rwpe/, gfp_variants/

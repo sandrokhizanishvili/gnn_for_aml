@@ -14,8 +14,7 @@ from omegaconf import OmegaConf
 
 from pipeline.gnn import tune
 from pipeline.gnn.model import RECIPE_KEYS
-from pipeline.metrics import METRIC_COLS
-from pipeline.results import run_name, run_root, write_json_atomic
+from pipeline.results import run_name, run_root, save_seed_summary, write_json_atomic
 
 CONF = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'conf')
 
@@ -63,12 +62,7 @@ def final_pair(cfg, model, feature_config):
             rows.append({k: v for k, v in results.items() if k not in ('recipe', 'threshold_sensitivity')})
     print(f"  final retrain: {len(rows)}/{len(s['final_seeds'])} seeds done, checks passed")
     if rows:
-        table = pd.DataFrame(rows)
-        table.to_csv(f'{pair_dir}/batch_summary_final.csv', index=False)
-        summary = {'run': table['run'].iloc[0], 'n_seeds': len(table), 'seeds': ' '.join(str(s) for s in table['seed'])}
-        for col in METRIC_COLS + ['threshold', 'seen_test_f1']:
-            summary[f'{col}_mean'], summary[f'{col}_std'] = float(table[col].mean()), float(table[col].std(ddof=1)) if len(table) > 1 else 0.0
-        pd.DataFrame([summary]).to_csv(f'{pair_dir}/seed_summary_final.csv', index=False)
+        save_seed_summary(pair_dir, rows)
 
 
 def main():

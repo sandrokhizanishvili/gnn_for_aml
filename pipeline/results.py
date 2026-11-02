@@ -1,5 +1,6 @@
 '''What a run writes and where: run names and folders, results.json, predictions.csv, curves.png, the resolved
 config, atomic JSON writes, the trial log of the tabular searches.'''
+import glob
 import json
 import os
 
@@ -12,7 +13,7 @@ from omegaconf import OmegaConf
 from sklearn.metrics import precision_recall_curve
 
 from pipeline.data import SPLITS
-from pipeline.metrics import METRICS
+from pipeline.metrics import METRIC_COLS, METRICS
 
 matplotlib.use('Agg')   # files only, never a window
 MODE_DIR = {'train': 'train', 'tune': 'tuning', 'final': 'final'}
@@ -73,6 +74,22 @@ def save_run(out_dir, row, hyperparameters, extra=None):
     '''results.json = the flat row + the hyperparameters + extras (written last: it marks a finished run).'''
     write_json_atomic(f'{out_dir}/results.json', dict(row, recipe=hyperparameters, **(extra or {})))
     print(pd.DataFrame({split: {m: row[f'{split}_{m}'] for m in METRICS} for split in SPLITS}).round(4))
+
+
+def save_seed_summary(pair_dir, rows):
+    '''batch_summary_final.csv (one row per finished seed) and seed_summary_final.csv (mean +- std over them).'''
+    table = pd.DataFrame(rows)
+    table.to_csv(f'{pair_dir}/batch_summary_final.csv', index=False)
+    summary = {'run': table['run'].iloc[0], 'n_seeds': len(table), 'seeds': ' '.join(str(s) for s in table['seed'])}
+    for col in [c for c in METRIC_COLS + ['threshold', 'seen_test_f1'] if c in table]:
+        summary[f'{col}_mean'], summary[f'{col}_std'] = float(table[col].mean()), float(table[col].std(ddof=1)) if len(table) > 1 else 0.0
+    pd.DataFrame([summary]).to_csv(f'{pair_dir}/seed_summary_final.csv', index=False)
+
+
+def finished_seeds(pair_dir):
+    '''The results.json rows of every finished seed of one run, without the nested fields.'''
+    rows = [json.load(open(path)) for path in sorted(glob.glob(f'{pair_dir}/seed-*/results.json'))]
+    return [{k: v for k, v in r.items() if k not in ('recipe', 'threshold_sensitivity')} for r in rows]
 
 
 def save_predictions(out_dir, graphs, preds, threshold):

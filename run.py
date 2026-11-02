@@ -158,6 +158,8 @@ def train_tabular(cfg, name, out_dir, graphs, point, extra):
     row = results.result_row(name, dict(cfg, feature_config={'mp': 'none', 'readout': 'full'}), best_epoch, threshold, n_params, 0, scores)
     row['mp_direction'] = 'none'
     results.save_run(out_dir, row, dict(hp, point=point), extra)
+    if cfg['mode'] == 'final':
+        results.save_seed_summary(os.path.dirname(out_dir), results.finished_seeds(os.path.dirname(out_dir)))
 
 
 # ---------------------------------------------------------------- check and main
