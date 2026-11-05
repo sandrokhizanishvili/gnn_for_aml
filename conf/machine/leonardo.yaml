@@ -1,6 +1,6 @@
 # @package _global_
 # Cineca Leonardo Booster: every job of a multirun (-m) is one single-GPU SLURM task, submitted by the submitit launcher.
-# Set "export ACCOUNT=<your project account>" in your ~/.bashrc (saldo -b lists it). Nothing else to edit.
+# The jobs are charged to your default project; "export ACCOUNT=<account>" (saldo -b) in ~/.bashrc selects another one.
 defaults:
   - override /hydra/launcher: submitit_slurm
 machine: leonardo
@@ -12,7 +12,7 @@ hydra:
     submitit_folder: ${hydra.sweep.dir}/jobs/%j   # job scripts and logs, next to the overrides of the launch
     partition: boost_usr_prod
     qos: normal                  # 24 h per job; a job cut by the limit is requeued and resumes (max_num_timeout)
-    account: ${oc.env:ACCOUNT}
+    account: ${oc.env:ACCOUNT,null}   # unset = SLURM uses your default project
     timeout_min: 1440
     nodes: 1
     tasks_per_node: 1

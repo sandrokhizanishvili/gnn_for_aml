@@ -141,7 +141,7 @@ Download `/kaggle/working/outputs/` into `outputs/` locally.
 |---|---|
 | Data, environment, outputs | `$WORK/aml_thesis/data`, `$WORK/aml_thesis/env`, `$WORK/aml_thesis/outputs` |
 | Environment | `conda env create -p $WORK/aml_thesis/env -f environment.yml` |
-| Project account | `export ACCOUNT=<account>` in `~/.bashrc` (`saldo -b` lists it) |
+| Project account | your default project; `export ACCOUNT=<account>` in `~/.bashrc` (`saldo -b`) to charge another one |
 | Parallel tasks | `hydra.launcher.array_parallelism=<n>` if the per-user GPU limit is smaller |
 | Job logs | `outputs/logs/<timestamp>/jobs/` |
 
