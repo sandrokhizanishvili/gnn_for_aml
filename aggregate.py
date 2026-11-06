@@ -31,7 +31,7 @@ def tuning_pair(cfg, model, feature_config, trials_drawn, base):
         tune.check_trial(trial, expected, f"{rdir}/t{trial['trial_id']:03d}", s['tuning_seeds'], base['epochs'])
     seeds_done = len(glob.glob(f'{rdir}/t*/seed-*/done.json'))
     status = pd.Series([x['status'] for x in trials], dtype=object).value_counts().to_dict()
-    print(f"{model} {feature_config['mp']}/{feature_config['readout']}: seeds done {seeds_done}/{2 * s['n_trials']}, "
+    print(f"{model} {feature_config['mp']}/{feature_config['readout']}: seeds done {seeds_done}/{len(s['tuning_seeds']) * s['n_trials']}, "
           f"trials scored {len(trials)}/{s['n_trials']} {status}, checks passed")
     if not trials:
         return

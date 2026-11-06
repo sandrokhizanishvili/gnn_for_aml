@@ -83,7 +83,8 @@ def finalise_trial(trial_dir, seeds):
         trial[f'val_{metric}_mean_curve'] = mean_curve.tolist()
         for key in TRIAL_METRIC_KEYS:
             values = np.array([per_seed[str(s)][key] for s in seeds])
-            trial[f'{key}_mean'], trial[f'{key}_std'] = float(values.mean()), float(values.std(ddof=1))
+            trial[f'{key}_mean'] = float(values.mean())
+            trial[f'{key}_std'] = float(values.std(ddof=1)) if len(values) > 1 else None   # one tuning seed: no std
         trial['gap_pr_auc'] = trial['train_pr_auc_mean'] - trial['val_pr_auc_mean']
     write_json_atomic(path, trial)
     return trial
@@ -109,7 +110,7 @@ def save_recipe(path, trial, retrain_seeds):
               'val_f1_mean': trial['val_f1_mean'], 'val_f1_std': trial['val_f1_std']}
     write_json_atomic(path, frozen)
     print(f'frozen recipe -> {path}: trial {trial["trial_id"]} ({trial["tag"]}), best epoch {trial["best_epoch"]}, '
-          f'val PR-AUC {trial["val_pr_auc_mean"]:.4f} +- {trial["val_pr_auc_std"]:.4f}')
+          f'val PR-AUC {trial["val_pr_auc_mean"]:.4f}' + (f' +- {trial["val_pr_auc_std"]:.4f}' if trial['val_pr_auc_std'] is not None else ''))
     return frozen
 
 

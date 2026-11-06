@@ -10,7 +10,7 @@ select_metric: pr_auc
 search:
   n_trials: 100
   draw_seed: 20261022
-  tuning_seeds: [42, 43]
+  tuning_seeds: [42]
   final_seeds: [42, 43, 44, 45, 46]
   models: [gin, pna, gat, transformer]
   feature_configs: [c2, c4]

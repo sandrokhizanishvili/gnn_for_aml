@@ -118,7 +118,7 @@ run returns at once, an interrupted one continues from `resume.pt`. Re-run the s
 | Seed sweep of the grid | add `seed=42,43,44,45,46` | `outputs/train/<model>/<run>/seed-<s>/` |
 | Node-encoding study (8 runs) | `python run.py -m model=gin,pna,gat,transformer feature_config=c4,c5 node_encoding=rwpe16` | `outputs/train/<model>/*_enc-rwpe16/` |
 | Tuned-GFP study (8 runs) | `python run.py -m model=gin,pna,gat,transformer feature_config=c4,c5 gfp_sheet=tuned` | `outputs/train/<model>/*_gfp-tuned/` |
-| GNN random search (1,600 jobs) | `python run.py -m tuning=gnn/search machine=leonardo` | `outputs/tuning/<model>/<run>/t<id>/` |
+| GNN random search (800 jobs) | `python run.py -m tuning=gnn/search machine=leonardo` | `outputs/tuning/<model>/<run>/t<id>/` |
 | Freeze the winners | `python aggregate.py machine=leonardo` | `outputs/tuning/<model>/<run>/recipe.json` |
 | Final retrain of the winners (40 jobs) | `python run.py -m tuning=gnn/final machine=leonardo` | `outputs/final/<model>/` |
 | Cross-check without message passing: LightGBM / MLP search (one job), then its winner x 5 seeds | `python run.py -m tuning=lightgbm/search`, then `python run.py -m tuning=lightgbm/final` (same with `mlp`) | `outputs/tuning/lightgbm/`, `outputs/final/lightgbm/` |
@@ -180,11 +180,13 @@ ROC-AUC, precision and recall in the top 5 %) on train, val and test at the vali
 
 - Threshold swept on validation every epoch (best F1); best epoch = best validation PR-AUC; test scored exactly
   once with that checkpoint and threshold; every metric on all three splits.
-- GNN search (`hyperparameters/gnn/space.yaml`, protocol of Luo et al. 2024): 100 trials × 2 seeds per operator
+- GNN search (`hyperparameters/gnn/space.yaml`, protocol of Luo et al. 2024): 100 trials × 1 seed per operator
   and feature configuration (c2, c4), 100 epochs at a constant learning rate, no early stopping; best epoch = argmax
-  of the seed-mean validation PR-AUC, winner = highest mean validation PR-AUC. Final retrain on train + val at the
-  frozen epoch, 5 seeds, threshold = mean of the two tuning thresholds. Trials are drawn deterministically from the
-  yaml space; a trial that does not fit in GPU memory is recorded `oom` and cannot win.
+  of the validation PR-AUC, winner = highest validation PR-AUC. Final retrain on train + val at the frozen epoch,
+  5 seeds, threshold = the tuning run's validation threshold at that epoch. One tuning seed because the Cineca
+  allocation (1,500 GPU hours) does not pay for two; `tuning_seeds` in `space.yaml` lists the seeds and the code
+  averages the curve and the threshold over them, so a second seed can be added later. Trials are drawn
+  deterministically from the yaml space; a trial that does not fit in GPU memory is recorded `oom` and cannot win.
 - Cross-checks (`hyperparameters/lightgbm/`, `hyperparameters/mlp/`): the 93 inputs the GNN readout sees (81 edge
   columns + 6 + 6 entity one-hots), train rows only, same threshold rule. LightGBM: successive halving (100
   configurations, eta 2), every fit early-stopped on validation PR-AUC. MLP: 100 random trials, best epoch by
