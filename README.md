@@ -131,7 +131,8 @@ CPU suffices for LightGBM, the MLP and `mode=check`; a GNN run needs a GPU. Mult
 **Kaggle** (GNN runs): open `notebooks/gnn_fixed_architecture_runs.ipynb` in a GPU notebook with the dataset
 `sandrokhizanishvili/hi-small-gnn` as input, set `MODEL`, Run All. Any command above works there with
 `machine=kaggle`. The node-encoding and tuned-GFP studies also need the datasets `hi-small-rwpe` and
-`hi-small-gfp-tuned` linked as `rwpe/` and `gfp_variants/` next to the graphs (`paths.data=<that folder>`).
+`hi-small-gfp-tuned` linked as `rwpe/` and `gfp_variants/` next to the graphs (`paths.data=<that folder>`);
+`notebooks/gnn_node_encoding_runs.ipynb` and `notebooks/gnn_tuned_gfp_runs.ipynb` do this, one study each.
 Download `/kaggle/working/outputs/` into `outputs/` locally.
 
 **Cineca** (Leonardo Booster, SLURM): add `machine=leonardo` on a login node; jobs are submitted by the launcher
