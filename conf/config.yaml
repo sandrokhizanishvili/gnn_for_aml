@@ -1,4 +1,4 @@
-# One run. Groups: hyperparameters (<model>/fixed | search; a tabular model selects its own), model (gin | pna | gat | transformer | lightgbm | mlp),
+# One run. Groups: hyperparameters (<model>/fixed | search; a tabular model selects its own), model (gin | pna | gat | transformer | gps | lightgbm | mlp),
 # feature_config (c1..c7), machine (local | kaggle | leonardo), tuning (a saved search / final-retrain command).
 defaults:
   - _self_

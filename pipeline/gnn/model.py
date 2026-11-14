@@ -1,14 +1,14 @@
 '''The GNN: one fixed template (node projection -> message-passing layers -> readout on the seed edge) in which only
-the graph convolution differs between the four operators. The recipe dict (conf/hyperparameters/gnn/) sets every
+the graph convolution differs between the operators. The recipe dict (conf/hyperparameters/gnn/) sets every
 size and knob; identical module names across recipes keep every checkpoint loadable.'''
 import torch
 import torch.nn as nn
-from torch_geometric.nn import GATv2Conv, GINConv, GINEConv, PNAConv, TransformerConv
+from torch_geometric.nn import GATv2Conv, GINConv, GINEConv, GPSConv, PNAConv, TransformerConv
 
 from pipeline.data import BASE_NODE_DIM
 
-OPERATORS = ('gin', 'pna', 'gat', 'transformer')
-HEADS = 4                                    # GATv2 / Transformer: HEADS heads x (hidden / HEADS) = hidden
+OPERATORS = ('gin', 'pna', 'gat', 'transformer', 'gps')
+HEADS = 4                                    # attention operators: HEADS heads x (hidden / HEADS) = hidden
 RECIPE_KEYS = ('hidden', 'num_layers', 'dropout', 'norm', 'residual', 'ffn', 'num_neighbors', 'batch_size', 'epochs',
                'lr', 'weight_decay', 'pos_weight', 'self_loops', 'readout_layers', 'readout_width', 'lr_schedule',
                'num_workers', 'select_metric')
@@ -42,6 +42,9 @@ def make_conv(operator, hidden, mp_edge_dim, deg_hist=None, self_loops=True):
     if operator == 'transformer':
         return TransformerConv(hidden, hidden // HEADS, heads=HEADS, concat=True, beta=False, dropout=0.0,
                                root_weight=True, **edge)
+    if operator == 'gps':                    # GIN on the edges + attention over every node of the sampled subgraph
+        return GPSConv(hidden, make_conv('gin', hidden, mp_edge_dim), heads=HEADS, norm=None, attn_type='performer',
+                       attn_kwargs=dict(head_channels=hidden // HEADS))
     raise ValueError(f'unknown operator {operator!r}; choose from {OPERATORS}')
 
 
@@ -69,7 +72,7 @@ class MPLayer(nn.Module):
             self.residual_proj = nn.Linear(hidden, hidden)
 
     def forward(self, h, edge_index, edge_attr):
-        out = self.conv_in(h, edge_index, edge_attr) if self.use_edges else self.conv_in(h, edge_index)
+        out = self.conv_in(h, edge_index, edge_attr=edge_attr) if self.use_edges else self.conv_in(h, edge_index)
         if self.residual == 'linear':
             out = out + self.residual_proj(h)
         out = self.dropout(torch.relu(self.norm(out)))

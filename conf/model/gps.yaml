@@ -1,0 +1,3 @@
+# GraphGPS layer: GIN message passing + Performer attention over the sampled subgraph, 4 heads. Values: conf/hyperparameters/gnn/.
+name: gps
+kind: gnn
