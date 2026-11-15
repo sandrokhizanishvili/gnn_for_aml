@@ -39,9 +39,9 @@ def recipe_of(hp):
 def build(cfg, fit_graph, node_dim, mp_idx, readout_idx, r):
     '''Seeded model build on the graph trained on; prints the parameter fingerprint.'''
     data.set_seed(cfg['seed'])
-    operator = cfg['model']['name']
-    deg_hist = data.in_degree_histogram(fit_graph) if operator == 'pna' else None
-    model = gnn_model.build_model(operator, node_dim, len(mp_idx), len(readout_idx), r, deg_hist)
+    operator, local = cfg['model']['name'], cfg['model'].get('local', 'gin')
+    deg_hist = data.in_degree_histogram(fit_graph) if 'pna' in (operator, local) else None
+    model = gnn_model.build_model(operator, node_dim, len(mp_idx), len(readout_idx), r, deg_hist, local)
     n_params, n_invariant = gnn_model.count_params(model), gnn_model.invariant_params(model)
     print(f'MP edge features: {len(mp_idx)} | readout edge features: {len(readout_idx)} | node features: {node_dim}')
     print(f'total params: {n_params:,} | architecture-invariant: {n_invariant:,} | device {gnn_model.device}')
@@ -207,6 +207,8 @@ def main(cfg):
         name = f"{model['name']}_readout-full"
     else:
         name = results.run_name(model['name'], cfg['feature_config'], cfg['node_encoding'], cfg['gfp_sheet'])
+        if model.get('local', 'gin') != 'gin':
+            name += f"_local-{model['local']}"
     out_dir = results.run_dir(cfg, name)
     marker = 'results.json' if mode != 'tune' else 'recipe.json' if model['kind'] == 'tabular' else 'done.json'
     if os.path.exists(f'{out_dir}/{marker}'):

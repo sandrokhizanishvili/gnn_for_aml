@@ -28,7 +28,7 @@ def gin_mlp(hidden):
     return nn.Sequential(nn.Linear(hidden, hidden), nn.BatchNorm1d(hidden), nn.ReLU(), nn.Linear(hidden, hidden))
 
 
-def make_conv(operator, hidden, mp_edge_dim, deg_hist=None, self_loops=True):
+def make_conv(operator, hidden, mp_edge_dim, deg_hist=None, self_loops=True, local='gin'):
     '''One graph convolution: the only place the operators differ. mp_edge_dim = 0 keeps edge features out.'''
     edge = dict(edge_dim=mp_edge_dim) if mp_edge_dim > 0 else {}
     if operator == 'gin':
@@ -42,9 +42,9 @@ def make_conv(operator, hidden, mp_edge_dim, deg_hist=None, self_loops=True):
     if operator == 'transformer':
         return TransformerConv(hidden, hidden // HEADS, heads=HEADS, concat=True, beta=False, dropout=0.0,
                                root_weight=True, **edge)
-    if operator == 'gps':                    # GIN on the edges + attention over every node of the sampled subgraph
-        return GPSConv(hidden, make_conv('gin', hidden, mp_edge_dim), heads=HEADS, norm=None, attn_type='performer',
-                       attn_kwargs=dict(head_channels=hidden // HEADS))
+    if operator == 'gps':                    # local operator on the edges + attention over every node of the subgraph
+        return GPSConv(hidden, make_conv(local, hidden, mp_edge_dim, deg_hist), heads=HEADS, norm=None,
+                       attn_type='performer', attn_kwargs=dict(head_channels=hidden // HEADS))
     raise ValueError(f'unknown operator {operator!r}; choose from {OPERATORS}')
 
 
@@ -56,10 +56,10 @@ class MPLayer(nn.Module):
     '''One message-passing step: h <- h + Dropout(ReLU(Norm(conv(h, edges)))) (residual identity); residual linear
     = Dropout(ReLU(Norm(conv(h) + W_r h))); none = no skip. ffn adds h <- Norm(h + W2(Dropout(ReLU(W1 h)))).'''
 
-    def __init__(self, operator, hidden, mp_edge_dim, r, deg_hist=None):
+    def __init__(self, operator, hidden, mp_edge_dim, r, deg_hist=None, local='gin'):
         super().__init__()
         self.use_edges = mp_edge_dim > 0
-        self.conv_in = make_conv(operator, hidden, mp_edge_dim, deg_hist, r['self_loops'])
+        self.conv_in = make_conv(operator, hidden, mp_edge_dim, deg_hist, r['self_loops'], local)
         self.dropout = nn.Dropout(r['dropout'])
         self.norm = make_norm(r['norm'], hidden)
         self.ffn = None
@@ -86,11 +86,12 @@ class EdgeClassifier(nn.Module):
     '''node_proj Linear(node_dim -> hidden) + ReLU -> num_layers MPLayers -> readout on the seed edge:
     concat [h_src || h_dst || e_seed] -> (readout_layers - 1) x (Linear -> ReLU -> Dropout) -> Linear 1 (logit).'''
 
-    def __init__(self, operator, node_dim, mp_edge_dim, readout_edge_dim, r, deg_hist=None):
+    def __init__(self, operator, node_dim, mp_edge_dim, readout_edge_dim, r, deg_hist=None, local='gin'):
         super().__init__()
         hidden = r['hidden']
         self.node_proj = nn.Linear(node_dim, hidden)
-        self.layers = nn.ModuleList([MPLayer(operator, hidden, mp_edge_dim, r, deg_hist) for _ in range(r['num_layers'])])
+        self.layers = nn.ModuleList([MPLayer(operator, hidden, mp_edge_dim, r, deg_hist, local)
+                                     for _ in range(r['num_layers'])])
         width = max(1, int(round(r['readout_width'] * hidden)))
         in_dim, readout = 2 * hidden + readout_edge_dim, []
         for _ in range(r['readout_layers'] - 1):
@@ -106,9 +107,9 @@ class EdgeClassifier(nn.Module):
         return self.classifier(z).squeeze(-1)
 
 
-def build_model(operator, node_dim, mp_edge_dim, readout_edge_dim, recipe, deg_hist=None):
-    '''The template for one operator, feature configuration and recipe, on the device.'''
-    return EdgeClassifier(operator, node_dim, mp_edge_dim, readout_edge_dim, check_recipe(recipe), deg_hist).to(device)
+def build_model(operator, node_dim, mp_edge_dim, readout_edge_dim, recipe, deg_hist=None, local='gin'):
+    '''The template for one operator, feature configuration and recipe, on the device. local = the operator inside gps.'''
+    return EdgeClassifier(operator, node_dim, mp_edge_dim, readout_edge_dim, check_recipe(recipe), deg_hist, local).to(device)
 
 
 def count_params(model):
