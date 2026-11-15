@@ -48,4 +48,7 @@ repo inherits (fixed architecture, evaluation protocol, leakage rules, writing s
   Kaggle or Cineca (README, "Where to run").
 - **Git**: never commit or push; propose a one-line commit message and wait. `data/`, `outputs/`, `*.pt`,
   `predictions.csv` stay out.
+- **Thesis figures** are made in `notebooks/`, with `plt.style.use('thesis_figures.mplstyle')` and nothing restyled by
+  hand, and saved as PDF into `../gnn_for_fraudulent_patterns/thesis/figures/`. The rules (one message per figure,
+  fixed colours, no titles) are in that repository's `thesis/CLAUDE.md`, section "Figures".
 - Writing style of docs: plain English, short sentences, numbers in tables, no filler.

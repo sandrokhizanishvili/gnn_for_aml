@@ -98,6 +98,8 @@ pipeline/
 notebooks/
   gnn_fixed_architecture_runs.ipynb      Kaggle GPU runs: one operator x c1..c7
   gnn_fixed_architecture_results.ipynb   tables and plots of the downloaded runs (outputs/train/)
+  EDA.ipynb                              the transaction graph: size, self-loops, degrees (runs on a laptop)
+  thesis_figures.mplstyle                the matplotlib style of every thesis figure
 environment.yml                   conda environment
 EXPERIMENTS.md                    status of every experiment
 data/                             not versioned: raw/, the graphs, rwpe/, gfp_variants/
