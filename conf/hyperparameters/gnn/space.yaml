@@ -1,28 +1,27 @@
-# The random search (protocol of Luo et al. 2024): the fixed values are trial 0; every trial runs 100 epochs at a
-# constant learning rate and its best epoch is chosen on validation PR-AUC. Modes tune and final, and aggregate.py.
-# search = what is drawn and how (pipeline/gnn/tune.py); the pairs tuned are models x feature_configs.
+# The GNN search: the values every trial shares and what is drawn for every operator (an operator's own three
+# parameters are in conf/model/<operator>.yaml). A trial trains 100 epochs at a constant learning rate unless the pruner
+# stops it; its score is its best validation PR-AUC. Modes tune and final, and aggregate.py.
 defaults:
   - gnn/fixed@_here_
+  - search@_here_
 epochs: 100
 lr_schedule: constant
 num_workers: 4
-select_metric: pr_auc
+self_loops: false            # GATv2 only: the graph has real self-loops, which add_self_loops would replace
 search:
-  n_trials: 100
-  draw_seed: 20261022
-  tuning_seeds: [42]
-  final_seeds: [42, 43, 44, 45, 46]
+  first_check: 4             # epochs before the pruner's first check (then 12, 36)
   models: [gin, pna, gat, transformer]
   feature_configs: [c2, c4]
-  space:                                    # Luo et al. 2024 section 4 + Tables 8-10, and our additions
+  neighbours: [100, 100, 50, 50, 25, 25, 25, 25, 25, 25]   # sampled per hop; a depth-d trial takes the first d
+  space:                     # a list = choices; [int | float | log, low, high] = a range
     lr: [0.0005, 0.001, 0.003, 0.005, 0.01]
     hidden: [64, 128, 256, 512]
+    num_layers: [int, 1, 10]
     norm: [none, batch, layer]
-    residual: [linear, none]
+    residual: [identity, linear, none]
     dropout: [0.2, 0.3, 0.5, 0.7]
-    weight_decay: [0.0, 0.00005, 0.0005, 0.001, 0.01]
+    weight_decay: [0.0, 0.00001, 0.00005, 0.0005, 0.001, 0.01]
     pos_weight: [4.0, 8.0, 16.0]
     readout_layers: [1, 2, 3]
-    readout_width: [0.5, 1.0, 2.0]          # drawn but unused when readout_layers = 1
-  depths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]   # message-passing layers, drawn from a second random stream
-  neighbours: [100, 100, 50, 50, 25, 25, 25, 25, 25, 25]   # sampled per hop; a depth-d trial takes the first d
+    readout_width: [0.5, 1.0, 2.0]          # unused when readout_layers = 1
+    activation: [relu, prelu, swish]

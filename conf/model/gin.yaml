@@ -1,3 +1,7 @@
 # GIN: GINConv, or GINEConv when edge features enter message passing. Values: conf/hyperparameters/gnn/.
 name: gin
 kind: gnn
+space:                       # the operator's own search parameters (fixed architecture: true, 2, 1)
+  train_eps: [true, false]   # learn the weight of the node's own features, or keep it at 1
+  mlp_layers: [1, 2]         # layers of the node MLP
+  mlp_width: [1, 2]          # x hidden, inside the node MLP; no effect with mlp_layers = 1

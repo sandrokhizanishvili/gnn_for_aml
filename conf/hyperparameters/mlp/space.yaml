@@ -1,17 +1,15 @@
 # A plain neural net on the same 93 inputs as LightGBM, edge columns standardised on the train rows: the never-searched
-# settings and the random search of the thesis: 100 unique uniform draws (trial 0 = the hand-picked start), one seed
-# each, ranked by validation PR-AUC. The winner lives only in recipe.json (mode tune writes it, mode final reads it);
-# there is no mode train for this model.
+# settings and what the search draws. A trial trains 100 epochs unless the pruner stops it; its score is its best
+# validation PR-AUC. The winner lives only in recipe.json (mode tune writes it, mode final reads it); there is no
+# mode train for this model.
+defaults:
+  - search@_here_
 for: mlp
-epochs: 60                   # cap; every fit stops after `patience` epochs without a better validation PR-AUC
-patience: 10
+epochs: 100                  # every trial that is not pruned trains all of them
 std_floor: 0.001             # floor of the train std in the standardisation
 search:
-  n_trials: 100
-  seeds: [42]
-  select: val_pr_auc
-  draw_seed: 42
-  start:                     # trial 0 (the hand-picked default); trials 1..99 are the draws
+  first_check: 4             # epochs before the pruner's first check (then 12, 36)
+  start:                     # the hand-picked start trial
     hidden: 512
     depth: 3
     shape: funnel
@@ -21,7 +19,8 @@ search:
     weight_decay: 0.0001
     pos_weight: 8.0
     batch_size: 8192
-  space:
+    activation: relu
+  space:                     # a list = choices
     hidden: [128, 256, 512, 1024]
     depth: [2, 3, 4, 5]
     shape: [flat, funnel, resnet]
@@ -31,3 +30,4 @@ search:
     weight_decay: [0.0, 0.00001, 0.0001, 0.001]
     pos_weight: [4.0, 8.0, 16.0]
     batch_size: [2048, 8192]
+    activation: [relu, prelu, swish]

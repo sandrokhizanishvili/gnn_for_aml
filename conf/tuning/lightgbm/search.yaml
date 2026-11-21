@@ -1,5 +1,5 @@
 # @package _global_
-# The lightgbm halving search, one job -> outputs/tuning/lightgbm/<run>/recipe.json.
+# The lightgbm search, one job -> outputs/tuning/lightgbm/<run>/recipe.json.
 defaults:
   - override /model: lightgbm
 mode: tune

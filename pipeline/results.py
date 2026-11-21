@@ -1,12 +1,11 @@
 '''What a run writes and where: run names and folders, results.json, predictions.csv, curves.png, the resolved
-config, atomic JSON writes, the trial log of the tabular searches.'''
+config, atomic JSON writes.'''
 import glob
 import json
 import os
 
 import matplotlib
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import torch
 from omegaconf import OmegaConf
@@ -32,17 +31,14 @@ def run_name(model, feature_config, node_encoding='none', gfp_sheet='default'):
 
 
 def run_root(outputs, mode, model, name):
-    '''outputs/<train | tuning | final>/<model>/<run>: shared by every seed and trial of one run.'''
+    '''outputs/<train | tuning | final>/<model>/<run>: shared by every seed of one run.'''
     return f'{outputs}/{MODE_DIR[mode]}/{model}/{name}'
 
 
 def run_dir(cfg, name):
-    '''The folder of one job: run_root + /t<trial>/seed-<s> (a GNN tuning job), /seed-<s> (train, final), or
-    run_root itself (a tabular search, one job).'''
+    '''The folder of one job: run_root itself (a search) or run_root + /seed-<s> (train, final).'''
     root = run_root(cfg['paths']['outputs'], cfg['mode'], cfg['model']['name'], name)
-    if cfg['mode'] == 'tune':
-        return root if cfg['model']['kind'] == 'tabular' else f"{root}/t{cfg['trial']:03d}/seed-{cfg['seed']}"
-    return f"{root}/seed-{cfg['seed']}"
+    return root if cfg['mode'] == 'tune' else f"{root}/seed-{cfg['seed']}"
 
 
 # ---------------------------------------------------------------- files
@@ -97,7 +93,7 @@ def save_predictions(out_dir, graphs, preds, threshold):
     frames = []
     for split in SPLITS:
         graph, edge_id = graphs[split], torch.as_tensor(preds[split]['edge_id'])
-        prob = preds[split]['prob'].astype(np.float32)
+        prob = preds[split]['prob']
         frames.append(pd.DataFrame({'split': split, 'edge_id': edge_id.numpy(),
                                     'src': graph.edge_index[0, edge_id].numpy(), 'dst': graph.edge_index[1, edge_id].numpy(),
                                     'edge_time': graph.edge_time[edge_id].numpy(), 'y': preds[split]['y'], 'prob': prob,
@@ -140,24 +136,3 @@ def plot_curves(history, title, path, best_epoch=None, test=None):
     plt.tight_layout()
     plt.savefig(path, dpi=120)
     plt.close(fig)
-
-
-# ---------------------------------------------------------------- the trial log of a tabular search
-
-def check_draw(path, configs):
-    '''configs.json: written by the first run; a rerun must reproduce the same seeded draw.'''
-    if os.path.exists(path):
-        assert {int(k): v for k, v in json.load(open(path)).items()} == configs, 'configs.json differs from the seeded draw'
-    else:
-        json.dump(configs, open(path, 'w'), indent=1)
-
-
-def log_trial(path, trials, row):
-    '''Append one finished trial to trials.csv (so a stopped search resumes) and to the in-memory table.'''
-    new = pd.DataFrame([row])
-    new.to_csv(path, mode='a', header=not os.path.exists(path), index=False)
-    return pd.concat([trials, new], ignore_index=True) if len(trials) else new
-
-
-def read_trials(path):
-    return pd.read_csv(path) if os.path.exists(path) else pd.DataFrame()

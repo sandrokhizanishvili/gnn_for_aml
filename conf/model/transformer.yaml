@@ -1,3 +1,7 @@
 # Graph transformer: TransformerConv with edge features, 4 heads. Values: conf/hyperparameters/gnn/.
 name: transformer
 kind: gnn
+space:                       # the operator's own search parameters (fixed architecture: 4, false, 0)
+  heads: [1, 2, 4, 8]        # heads x (hidden / heads) = hidden
+  beta: [false, true]        # gated skip connection, or the plain one
+  attention_dropout: [float, 0.0, 0.5]     # dropout on the attention weights

@@ -1,5 +1,5 @@
 # @package _global_
-# The frozen lightgbm winner (recipe.json) x 5 seeds -> outputs/final/lightgbm/<run>/seed-<s>/.
+# The frozen lightgbm winner (recipe.json) refit on train + val x 5 seeds -> outputs/final/lightgbm/<run>/seed-<s>/.
 defaults:
   - override /model: lightgbm
 mode: final

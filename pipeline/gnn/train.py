@@ -123,9 +123,10 @@ def load_resume(path, model, optimizer, scheduler):
     return state
 
 
-def train_one_run(model, loaders, out_dir, r, save_best=True):
+def train_one_run(model, loaders, out_dir, r, save_best=True, report=None):
     '''The epoch loop: train + val scored every epoch, threshold swept on val, best epoch by r['select_metric']
-    (best.pt when save_best), resumable. Returns (history rows, best_epoch, best_threshold).'''
+    (best.pt when save_best), resumable. A search passes report(best score so far, epoch), which may stop the trial.
+    Returns (history rows, best_epoch, best_threshold).'''
     metric = r['select_metric']
     train_loader, train_feats = loaders['train']
     val_loader, val_feats = loaders['val']
@@ -167,7 +168,9 @@ def train_one_run(model, loaders, out_dir, r, save_best=True):
                   + ('   * new best' if is_best else ''), flush=True)
             scheduler.step()
         save_resume(resume_path, model, optimizer, scheduler, dict(history=history, stopped=stopped, best=best))
-    pd.DataFrame(history).to_csv(f'{out_dir}/history.csv', index=False)
+        pd.DataFrame(history).to_csv(f'{out_dir}/history.csv', index=False)
+        if report is not None and not stopped and epoch < r['epochs']:   # after the last epoch the trial is complete
+            report(best[0], epoch)
     print(f'best validation {metric} {best[0]:.4f} at epoch {best[1]} (threshold {best[2]:.3f}) | {len(history)} of {r["epochs"]} epochs run')
     return history, best[1], best[2]
 

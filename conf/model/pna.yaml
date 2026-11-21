@@ -1,3 +1,7 @@
 # PNA: PNAConv with the in-degree histogram of the training graph. Values: conf/hyperparameters/gnn/.
 name: pna
 kind: gnn
+space:                       # the operator's own search parameters (fixed architecture: true, 1, false)
+  degree_scalers: [true, false]            # identity + amplification + attenuation, or identity only
+  towers: [1, 4]
+  divide_input: [false, true]              # split the input across the towers, or repeat it; no effect with 1 tower

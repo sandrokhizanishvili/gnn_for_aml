@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from pipeline.gnn.model import make_norm   # the same norm layers as the GNN template
+from pipeline.gnn.model import make_activation, make_norm   # the same layers as the GNN template
 
 N_ONEHOT = 12              # the entity one-hots are the last 12 columns of the matrix
 
@@ -21,8 +21,8 @@ def standardise(X, rows, std_floor):
 
 
 class MLP(nn.Module):
-    '''flat / funnel: [Linear -> Norm -> ReLU -> Dropout] per width, then Linear -> 1. resnet: Linear in -> hidden,
-    `depth` residual blocks z + W2(Dropout(ReLU(Norm(W1 z)))), then Linear -> 1 (Gorishniy et al. 2021).'''
+    '''flat / funnel: [Linear -> Norm -> Act -> Dropout] per width, then Linear -> 1. resnet: Linear in -> hidden,
+    `depth` residual blocks z + W2(Dropout(Act(Norm(W1 z)))), then Linear -> 1 (Gorishniy et al. 2021).'''
 
     def __init__(self, in_dim, k):
         super().__init__()
@@ -31,13 +31,14 @@ class MLP(nn.Module):
         layers, last = [], in_dim
         if k['shape'] == 'resnet':
             layers.append(nn.Linear(in_dim, hidden))
-            self.blocks = nn.ModuleList(nn.Sequential(nn.Linear(hidden, hidden), make_norm(k['norm'], hidden), nn.ReLU(),
-                                                      nn.Dropout(k['dropout']), nn.Linear(hidden, hidden)) for _ in range(depth))
+            self.blocks = nn.ModuleList(nn.Sequential(nn.Linear(hidden, hidden), make_norm(k['norm'], hidden),
+                                                      make_activation(k['activation']), nn.Dropout(k['dropout']),
+                                                      nn.Linear(hidden, hidden)) for _ in range(depth))
             last = hidden
         else:
             self.blocks = None
             for w in widths:
-                layers += [nn.Linear(last, w), make_norm(k['norm'], w), nn.ReLU(), nn.Dropout(k['dropout'])]
+                layers += [nn.Linear(last, w), make_norm(k['norm'], w), make_activation(k['activation']), nn.Dropout(k['dropout'])]
                 last = w
         self.stem, self.head = nn.Sequential(*layers), nn.Linear(last, 1)
 

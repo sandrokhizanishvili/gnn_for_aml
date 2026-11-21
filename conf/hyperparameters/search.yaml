@@ -1,0 +1,8 @@
+# The search strategy every model shares (mode tune, pipeline/tune.py): the TPE sampler with the Hyperband pruner.
+# Composed into every <model>/space.yaml, which adds first_check, space and, where there is one, start.
+search:
+  n_trials: 100             # per study; the start trial and the random start-up trials are inside the 100
+  sampler_seed: 42
+  startup_trials: 5         # random trials in each of the 3 Hyperband brackets before TPE suggests
+  reduction_factor: 3       # a check keeps the best third; checks at first_check x 1, 3, 9
+  final_seeds: [42, 43, 44, 45, 46]

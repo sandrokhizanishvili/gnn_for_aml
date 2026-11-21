@@ -1,5 +1,5 @@
-'''MLP training at one configuration: Adam at a constant learning rate, train and val scored every epoch, the
-weights of the best validation PR-AUC epoch kept, stop after hp['patience'] epochs without a gain.'''
+'''MLP training at one configuration: Adam at a constant learning rate for a given number of epochs, train and val
+scored every epoch.'''
 import time
 
 import torch
@@ -12,8 +12,10 @@ from pipeline.metrics import epoch_row
 from pipeline.mlp.model import MLP, predict_mlp
 
 
-def fit_mlp(knobs, hp, X, y, rows, seed):
-    '''X: the standardised matrix on the device; y: the 0/1 labels (numpy). Returns (model, history, best epoch).'''
+def fit_mlp(knobs, X, y, rows, fit_rows, epochs, seed, report=None):
+    '''X: the standardised matrix on the device; y: the 0/1 labels (numpy); fit_rows: the slice trained on (the train
+    rows in a search, train + val in the final refit). A search passes report(best score so far, epoch), which may
+    stop the trial. Returns (model, history).'''
     set_seed(seed)
     model = MLP(X.shape[1], knobs).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=knobs['lr'], weight_decay=knobs['weight_decay'])
@@ -22,11 +24,11 @@ def fit_mlp(knobs, hp, X, y, rows, seed):
     y_train, y_val = y[tr].astype(int), y[va].astype(int)
     y = torch.from_numpy(y).float().to(device)
     print(f"{knobs['shape']} hidden {knobs['hidden']} depth {knobs['depth']} | params {count_params(model):,} | seed {seed}")
-    history, best_epoch, best_score, best_state = [], 0, -1.0, None
-    for epoch in range(1, hp['epochs'] + 1):
+    history, best = [], -1.0
+    for epoch in range(1, epochs + 1):
         t0 = time.time()
         model.train()
-        order, losses = tr.start + torch.randperm(tr.stop - tr.start, device=device), []
+        order, losses = fit_rows.start + torch.randperm(fit_rows.stop - fit_rows.start, device=device), []
         for i in range(0, len(order), knobs['batch_size']):
             idx = order[i:i + knobs['batch_size']]
             optimizer.zero_grad()
@@ -37,13 +39,9 @@ def fit_mlp(knobs, hp, X, y, rows, seed):
         row = epoch_row(epoch, y_train, predict_mlp(model, X, tr), y_val, predict_mlp(model, X, va), LOSS_WEIGHT, t0)
         row.update(train_loss_batches=float(torch.stack(losses).mean()), lr=knobs['lr'])
         history.append(row)
-        if row['val_pr_auc'] > best_score:
-            best_epoch, best_score = epoch, row['val_pr_auc']
-            best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+        best = max(best, row['val_pr_auc'])
         print(f"epoch {epoch:3d} | loss {row['train_loss']:.4f} / {row['val_loss']:.4f} | F1 {row['train_f1']:.4f} / {row['val_f1']:.4f} "
-              f"@ {row['threshold']:.3f} | PR-AUC {row['train_pr_auc']:.4f} / {row['val_pr_auc']:.4f} | {row['seconds']:.1f}s"
-              + ('   * new best' if epoch == best_epoch else ''))
-        if epoch - best_epoch >= hp['patience']:
-            break
-    model.load_state_dict(best_state)
-    return model, history, best_epoch
+              f"@ {row['threshold']:.3f} | PR-AUC {row['train_pr_auc']:.4f} / {row['val_pr_auc']:.4f} | {row['seconds']:.1f}s", flush=True)
+        if report is not None and epoch < epochs:   # after the last epoch the trial is complete
+            report(best, epoch)
+    return model, history

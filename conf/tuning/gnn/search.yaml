@@ -1,6 +1,6 @@
 # @package _global_
-# The GNN random search: 100 trials x 1 seed for every (operator, configs 2 / 4) = 800 jobs, then "python aggregate.py".
-# Must match the search block of hyperparameters/gnn/space.yaml (n_trials, tuning_seeds, models, feature_configs).
+# The GNN search: one study per (operator, configs 2 / 4), 4 workers each = 32 jobs. A worker runs trials until its
+# study has n_trials; then "python aggregate.py". Must match models and feature_configs of hyperparameters/gnn/space.yaml.
 defaults:
   - override /hyperparameters: gnn/space
 mode: tune
@@ -9,5 +9,4 @@ hydra:
     params:
       model: gin,pna,gat,transformer
       feature_config: c2,c4
-      trial: range(0,100)
-      seed: 42
+      worker: 0,1,2,3

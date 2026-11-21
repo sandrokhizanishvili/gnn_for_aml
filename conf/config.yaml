@@ -1,4 +1,4 @@
-# One run. Groups: hyperparameters (<model>/fixed | search; a tabular model selects its own), model (gin | pna | gat | transformer | gps | lightgbm | mlp),
+# One run. Groups: hyperparameters (<model>/fixed | space; a tabular model selects its own), model (gin | pna | gat | transformer | gps | lightgbm | mlp),
 # feature_config (c1..c7), machine (local | kaggle | leonardo), tuning (a saved search / final-retrain command).
 defaults:
   - _self_
@@ -10,7 +10,7 @@ defaults:
 
 mode: train             # train | tune | final | check
 seed: 42
-trial: null             # tune only: index into the drawn trial list (0 = the fixed values)
+worker: 0               # tune only: several workers can share one study, each with its own number
 node_encoding: none     # none | rwpe8 | rwpe16   (random-walk columns appended to the 6 entity one-hots)
 gfp_sheet: default      # default | tuned        (which GFP sheet fills the 61 / 64 GFP columns)
 

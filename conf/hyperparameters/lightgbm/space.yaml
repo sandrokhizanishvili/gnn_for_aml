@@ -1,22 +1,19 @@
-# LightGBM on the 93 inputs (81 edge columns + the 6 + 6 entity one-hots): the never-searched settings and the halving
-# search of the thesis (Altman et al. 2023 Appendix C): 100 configurations, the best half kept each round, first round on
-# the most recent 10 % of the train rows, ranked by validation PR-AUC. The winner lives only in recipe.json (mode tune
-# writes it, mode final reads it); there is no mode train for this model.
+# LightGBM on the 93 inputs (81 edge columns + the 6 + 6 entity one-hots): the never-searched settings and what the
+# search draws. A trial trains 1,000 rounds unless the pruner stops it; its score is its best validation PR-AUC. The
+# winner lives only in recipe.json (mode tune writes it, mode final reads it); there is no mode train for this model.
+defaults:
+  - search@_here_
 for: lightgbm
 settings:                    # never searched
   objective: binary
   bagging_freq: 1
   verbose: -1
-early_stopping: 100          # rounds without a higher validation PR-AUC; the kept round is the best one
-check_every: 25              # rounds between the train / val scores of history.csv
+rounds: 1000                 # every trial that is not pruned trains all of them (the upper bound of Altman et al. 2023)
+check_every: 25              # final: rounds between the train / val scores of history.csv
 search:
-  n_configs: 100
-  eta: 2
-  first_fraction: 0.1
-  select: val_pr_auc
-  draw_seed: 42
-  space:                     # [kind, low, high]; kind int | float | log. num_round is fixed but stays in the draw order.
-    num_round: [int, 2000, 2000]
+  first_check: 40            # rounds before the pruner's first check (then 120, 360)
+  report_every: 20           # rounds between two reports to the pruner
+  space:                     # [int | float | log, low, high] = a range
     num_leaves: [int, 7, 63]
     learning_rate: [log, 0.01, 0.05]
     min_data_in_leaf: [int, 200, 2000]

@@ -6,6 +6,8 @@ dropout: 0.3
 norm: none              # none | batch | layer, after each message-passing layer
 residual: identity      # identity (h + layer(h)) | linear (Luo et al. 2024) | none
 ffn: false
+activation: relu        # relu | prelu | swish, after the node projection, each message-passing layer and in the readout
+conv: {}                # the operator's own settings changed by a search; empty = the values in pipeline/gnn/model.py
 num_neighbors: [100, 100]
 batch_size: 8192
 epochs: 20

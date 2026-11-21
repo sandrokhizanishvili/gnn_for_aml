@@ -1,5 +1,5 @@
 # @package _global_
-# The frozen mlp winner (recipe.json) x 5 seeds -> outputs/final/mlp/<run>/seed-<s>/.
+# The frozen mlp winner (recipe.json) refit on train + val x 5 seeds -> outputs/final/mlp/<run>/seed-<s>/.
 defaults:
   - override /model: mlp
 mode: final

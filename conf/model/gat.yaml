@@ -1,3 +1,7 @@
 # GATv2: GATv2Conv, 4 heads. Values: conf/hyperparameters/gnn/.
 name: gat
 kind: gnn
+space:                       # the operator's own search parameters (fixed architecture: 4, false, 0)
+  heads: [1, 2, 4, 8]        # heads x (hidden / heads) = hidden
+  share_weights: [false, true]             # one projection for the source and the target node, or two
+  attention_dropout: [float, 0.0, 0.5]     # dropout on the attention weights
