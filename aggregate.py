@@ -30,7 +30,7 @@ def search_pair(cfg, model, feature_config):
     study = tune.open_study(rdir, hp['search'], hp['epochs'])
     states = collections.Counter(t.state.name for t in study.trials)
     for trial in study.get_trials(states=(TrialState.COMPLETE,)):
-        gnn_tune.check_trial(trial, f"{rdir}/{trial.user_attrs['folder']}", hp['epochs'])
+        gnn_tune.check_trial(trial, f"{rdir}/t{trial.number:03d}", hp['epochs'])
     print(f"{model} {feature_config['mp']}/{feature_config['readout']}: {dict(states)} of {hp['search']['n_trials']} trials, checks passed")
     tune.save_summary(study, rdir)
     if os.path.exists(f'{rdir}/recipe.json'):

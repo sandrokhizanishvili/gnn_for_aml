@@ -40,27 +40,28 @@ def suggest(trial, space):
 
 
 def run_search(study, study_dir, space, start, n_trials, worker, run_trial):
-    '''Runs trials while fewer than n_trials are finished or running; worker 0 queues the start trial, if there is one.
+    '''Runs trials until the study has n_trials; worker 0 queues the start trial, if there is one.
     run_trial(values, trial_dir, report) -> (score, info); score = None when the trial cannot win.
     report(best score so far, step) stops the trial when the pruner says so.'''
-    for trial in study.get_trials(states=(TrialState.RUNNING,)):
-        if trial.user_attrs.get('worker') == worker:   # this worker was stopped during the trial: queue it again
-            study.tell(trial.number, state=TrialState.FAIL)
-            study.enqueue_trial(trial.params, user_attrs={k: v for k, v in trial.user_attrs.items() if k != 'worker'})
+    stopped = [t for t in study.get_trials(states=(TrialState.RUNNING,)) if t.user_attrs.get('worker') == worker]
     if worker == 0 and start and not any(t.user_attrs.get('start') for t in study.trials):
         study.enqueue_trial(start, user_attrs={'start': True})
 
-    while sum(t.state != TrialState.FAIL for t in study.trials) < n_trials:
-        trial = study.ask()
-        values = suggest(trial, space)
-        folder = trial.user_attrs.get('folder', f't{trial.number:03d}')   # a queued-again trial keeps its folder
-        trial.set_user_attr('worker', worker)
-        trial.set_user_attr('folder', folder)
+    while stopped or len(study.trials) < n_trials:
+        if stopped:   # this worker was stopped during the trial: it continues under its number, which sets its bracket
+            before = stopped.pop()
+            trial, reported = optuna.trial.Trial(study, before._trial_id), max(before.intermediate_values, default=0)
+        else:
+            trial, reported = study.ask(), 0
+            trial.set_user_attr('worker', worker)
+        values = suggest(trial, space)   # a continued trial gets its stored values back
+        folder = f't{trial.number:03d}'
 
         def report(score, step):
-            trial.report(score, step)
-            if trial.should_prune() and not trial.user_attrs.get('start'):
-                raise optuna.TrialPruned()
+            if step > reported:   # the steps up to `reported` were checked before the stop
+                trial.report(score, step)
+                if trial.should_prune() and not trial.user_attrs.get('start'):
+                    raise optuna.TrialPruned()
 
         print(f'--- trial {trial.number}: {values}', flush=True)
         try:

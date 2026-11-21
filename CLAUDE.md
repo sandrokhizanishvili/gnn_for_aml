@@ -46,8 +46,8 @@ repo inherits (fixed architecture, evaluation protocol, leakage rules, writing s
   best-epoch rule (validation PR-AUC for every model, `EXPERIMENTS.md` Log). Do not change `pipeline/gnn/model.py`,
   an epoch loop or a search without redoing a slice regression.
 - **Every run is idempotent and resumable**: a done marker (`results.json` / `recipe.json`) returns at once;
-  `resume.pt` after every epoch; a search keeps its study in `study.log`, and a restarted worker queues the trial it
-  was running again (a GNN trial continues from its `resume.pt`). The cluster relies on it (requeue after the 24 h
+  `resume.pt` after every epoch; a search keeps its study in `study.log`, and a restarted worker continues the trial it
+  was running under the same trial number, so in the same Hyperband bracket (a GNN trial from its `resume.pt`). The cluster relies on it (requeue after the 24 h
   limit, re-running a multirun submits only what is missing). Never start the same `worker` number twice on one study.
 - **Tuning never reads the test snapshot** (`splits=('train', 'val')`), and `recipe.json` records
   `test_split_loaded`.

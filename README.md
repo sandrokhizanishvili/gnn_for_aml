@@ -100,7 +100,7 @@ pipeline/
 notebooks/
   gnn_fixed_architecture_runs.ipynb      Kaggle GPU runs: one operator x c1..c7
   gnn_fixed_architecture_results.ipynb   tables and plots of the downloaded runs (outputs/train/)
-  search_runs.ipynb                      Kaggle GPU: one search study (MLP, or one operator on c2 / c4)
+  mlp_runs.ipynb                         Kaggle GPU: the MLP search, then its final (separate sessions)
   EDA.ipynb                              the transaction graph: size, self-loops, degrees (runs on a laptop)
   thesis_figures.mplstyle                the matplotlib style of every thesis figure
 environment.yml                   conda environment
@@ -159,14 +159,14 @@ Notes on step 2:
 | Progress, checks and summaries of the GNN search | `python aggregate.py machine=leonardo` | `trials.csv`, `tuning_curves.png` |
 | Retrain the winners (40 jobs) | `python run.py -m tuning=gnn/final machine=leonardo` | `outputs/final/<model>/` |
 | LightGBM baseline: search, then winner × 5 seeds | `python run.py -m tuning=lightgbm/search`, then `python run.py -m tuning=lightgbm/final` | `outputs/tuning/lightgbm/`, `outputs/final/lightgbm/` |
-| MLP baseline | same as LightGBM with `mlp` | `outputs/tuning/mlp/`, `outputs/final/mlp/` |
+| MLP baseline | same as LightGBM with `mlp`; on Kaggle, `notebooks/mlp_runs.ipynb` | `outputs/tuning/mlp/`, `outputs/final/mlp/` |
 
 ## Where to run
 
 | Machine | Use for | How |
 |---|---|---|
 | Laptop (`machine=local`, default) | data preparation, LightGBM, MLP, `mode=check` | Uses the GPU if there is one, else CPU. GNN training needs a GPU. |
-| Kaggle (`machine=kaggle`) | GNN runs | See below. |
+| Kaggle (`machine=kaggle`) | GNN runs, the MLP search | See below. |
 | Cineca Leonardo (`machine=leonardo`) | GNN search and final retrain | Run the command on a login node; it submits SLURM jobs. See below. |
 
 A search continues from the `study.log` in its output folder. On Kaggle the working folder is lost between sessions:
@@ -208,8 +208,7 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 - `<run>` = `<model>_mp-<mp>_readout-<readout>_dir-in`, plus `_enc-rwpe16` or `_gfp-tuned` when used.
   LightGBM and MLP: `lightgbm_readout-full`, `mlp_readout-full`.
 - `results.json` holds seven metrics on train, validation and test: F1, precision, recall, PR-AUC, ROC-AUC, and
-  precision and recall in the top 5 %. It also stores the threshold, the best epoch and the hyperparameters.
-- `recipe.json` is the frozen winner of a search: its values, its best epoch (LightGBM: round) and its validation
+  precision and recall in the top 5 %. It also stores the threshold, the best epoch and the hyperparameters.- `recipe.json` is the frozen winner of a search: its values, its best epoch (LightGBM: round) and its validation
   threshold. It is written when the last trial of the study ends.
 
 ## Evaluation protocol

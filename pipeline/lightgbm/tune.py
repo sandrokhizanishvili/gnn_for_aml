@@ -18,7 +18,7 @@ def run_trial(params, hp, X, y, rows, seed, report):
             report(max(scores), len(scores))
 
     booster = fit_booster(params, hp['settings'], X[rows['train']], y[rows['train']], hp['rounds'], seed, (X_val, y_val),
-                          [report_curve, lgb.record_evaluation(curve)])
+                          [report_curve, lgb.record_evaluation(curve), lgb.log_evaluation(50)])
     scores = curve['valid_0']['average_precision']
     best_round = int(np.argmax(scores)) + 1
     threshold, val_f1 = best_f1_threshold(y_val, predict_booster(booster, X_val, best_round))
