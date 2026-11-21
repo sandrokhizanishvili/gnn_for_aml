@@ -2,6 +2,7 @@
 # The frozen lightgbm winner (recipe.json) refit on train + val x 5 seeds -> outputs/final/lightgbm/<run>/seed-<s>/.
 defaults:
   - override /model: lightgbm
+  - override /hyperparameters: lightgbm/space
 mode: final
 hydra:
   sweeper:

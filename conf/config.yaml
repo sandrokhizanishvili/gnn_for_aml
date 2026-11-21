@@ -1,5 +1,6 @@
-# One run. Groups: hyperparameters (<model>/fixed | space; a tabular model selects its own), model (gin | pna | gat | transformer | gps | lightgbm | mlp),
-# feature_config (c1..c7), machine (local | kaggle | leonardo), tuning (a saved search / final-retrain command).
+# One run. Groups: hyperparameters (gnn/fixed | <model>/space), model (gin | pna | gat | transformer | gps | lightgbm | mlp),
+# feature_config (c1..c7), machine (local | kaggle | leonardo), tuning (a saved search / final-retrain command: it
+# selects the model, its hyperparameters file, the mode and the sweep).
 defaults:
   - _self_
   - hyperparameters: gnn/fixed

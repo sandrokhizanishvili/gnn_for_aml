@@ -232,7 +232,7 @@ def main(cfg):
     if cfg['mode'] == 'check':
         return check(cfg)
     hp, model, mode = cfg['hyperparameters'], cfg['model'], cfg['mode']
-    assert hp['for'] == (model['name'] if model['kind'] == 'tabular' else 'gnn'), f"hyperparameters for {hp['for']}, model {model['name']}"
+    assert hp['for'] == (model['name'] if model['kind'] == 'tabular' else 'gnn'), f"hyperparameters for {hp['for']}, model {model['name']}: lightgbm and mlp run as tuning=<model>/search and tuning=<model>/final"
     assert mode == 'train' or 'search' in hp, f"mode {mode} needs hyperparameters={hp['for']}/space"
     if model['kind'] == 'tabular':
         assert mode != 'train', f"{model['name']} has no fixed values: run tuning={model['name']}/search, then tuning={model['name']}/final"

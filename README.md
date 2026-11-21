@@ -69,7 +69,7 @@ conf/
     local.yaml                    this computer
     kaggle.yaml                   Kaggle paths
     leonardo.yaml                 Cineca paths + SLURM launcher
-  tuning/                         saved commands
+  tuning/                         saved commands: the model, its hyperparameters file, the mode, the sweep
     gnn/
       search.yaml                 the GNN search
       final.yaml                  the final retrain of its winners

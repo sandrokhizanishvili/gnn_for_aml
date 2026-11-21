@@ -2,4 +2,5 @@
 # The lightgbm search, one job -> outputs/tuning/lightgbm/<run>/recipe.json.
 defaults:
   - override /model: lightgbm
+  - override /hyperparameters: lightgbm/space
 mode: tune

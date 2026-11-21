@@ -28,9 +28,9 @@ repo inherits (fixed architecture, evaluation protocol, leakage rules, writing s
   are the `space:` block of `conf/model/<operator>.yaml`; their fixed-architecture values are `CONV` in
   `pipeline/gnn/model.py`. What is searched and how lives in these yaml files only, never in Python. LightGBM and the
   MLP have `space.yaml` only: a searched winner is never pasted into a yaml, it lives in `recipe.json` (written by
-  mode tune, read by mode final), so there is one source of truth and no mode train for them. A tabular model file
-  selects its hyperparameters file (`override /hyperparameters`). `tuning/<model>/{search,final}.yaml` are the saved
-  commands.
+  mode tune, read by mode final), so there is one source of truth and no mode train for them.
+  `tuning/<model>/{search,final}.yaml` are the saved commands (Hydra's experiment pattern: `# @package _global_` +
+  `override /model`, `override /hyperparameters`, the mode and the sweep); LightGBM and the MLP run only through them.
 - **One search for every model** (README, "Evaluation protocol"): Optuna TPE + Hyperband, 100 trials per study, no
   early stopping, the score of a trial = its best validation PR-AUC, the winner retrained on train + val for its best
   epoch / round at its frozen threshold. Only the search space differs between models. Every value in a search space

@@ -2,4 +2,5 @@
 # The mlp search, one job -> outputs/tuning/mlp/<run>/recipe.json.
 defaults:
   - override /model: mlp
+  - override /hyperparameters: mlp/space
 mode: tune
