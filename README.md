@@ -255,7 +255,7 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 | Residual | identity, linear, none |
 | Dropout | 0.2, 0.3, 0.5, 0.7 |
 | Weight decay | 0, 1e-5, 5e-5, 5e-4, 1e-3, 1e-2 |
-| Positive-class weight | 4, 8, 16 |
+| Positive-class weight | 1 to 10 |
 | Readout layers, readout width | 1, 2, 3; 0.5, 1, 2 x hidden |
 | Activation | ReLU, PReLU, Swish |
 

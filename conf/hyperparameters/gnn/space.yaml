@@ -21,7 +21,7 @@ search:
     residual: [identity, linear, none]
     dropout: [0.2, 0.3, 0.5, 0.7]
     weight_decay: [0.0, 0.00001, 0.00005, 0.0005, 0.001, 0.01]
-    pos_weight: [4.0, 8.0, 16.0]
+    pos_weight: [float, 1.0, 10.0]
     readout_layers: [1, 2, 3]
     readout_width: [0.5, 1.0, 2.0]          # unused when readout_layers = 1
     activation: [relu, prelu, swish]
