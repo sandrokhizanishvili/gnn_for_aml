@@ -263,7 +263,7 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 |---|---|
 | GIN | `train_eps` true / false; node MLP layers 1 / 2; node MLP width 1 / 2 x hidden |
 | GATv2 | heads 1 / 2 / 4 / 8; `share_weights` false / true; attention dropout 0 to 0.5. Self-loops off in the search |
-| PNA | degree scalers on / off; towers 1 / 4; `divide_input` false / true |
+| PNA | degree scalers on / off; towers 1 / 2 / 4; `divide_input` false / true |
 | Transformer | heads 1 / 2 / 4 / 8; `beta` (gated skip) false / true; attention dropout 0 to 0.5 |
 
 **LightGBM and MLP baselines** (`conf/hyperparameters/lightgbm/`, `conf/hyperparameters/mlp/`)
