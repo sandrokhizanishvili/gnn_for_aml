@@ -2,7 +2,7 @@
 # the extension versions of the finished Kaggle runs; torch 2.6.0 + CUDA 12.6 instead of the Kaggle 2.8.0 because the
 # extension wheels built for torch >= 2.7 need glibc 2.32 and Leonardo (Red Hat 8) has 2.28. Do not add pyg-lib: its
 # wheel needs glibc 2.34 and PyG would sample with it instead of torch-sparse.
-#   conda env create -p $WORK/aml_thesis/env -f environment.yml
+#   conda env create -f environment.yml && conda activate aml_thesis
 name: aml_thesis
 channels:
   - conda-forge

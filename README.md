@@ -46,6 +46,7 @@ conf/
     pna.yaml
     gat.yaml
     transformer.yaml
+    gps.yaml                      GraphGPS side test (not in the grid or the search)
     lightgbm.yaml
     mlp.yaml
   feature_config/                 which edge columns enter message passing and the readout
@@ -100,11 +101,12 @@ pipeline/
 notebooks/
   gnn_fixed_architecture_runs.ipynb      Kaggle GPU runs: one operator x c1..c7
   gnn_fixed_architecture_results.ipynb   tables and plots of the downloaded runs (outputs/train/)
-  mlp_runs.ipynb                         Kaggle GPU: the MLP search, then its final (separate sessions)
+  gnn_node_encoding_runs.ipynb           Kaggle GPU runs: the node-encoding study (rwpe16)
+  gnn_tuned_gfp_runs.ipynb               Kaggle GPU runs: the tuned-GFP study
+  mlp_runs.ipynb                         Kaggle GPU: the MLP search, then its final
   EDA.ipynb                              the transaction graph: size, self-loops, degrees (runs on a laptop)
   thesis_figures.mplstyle                the matplotlib style of every thesis figure
 environment.yml                   conda environment
-EXPERIMENTS.md                    status of every experiment
 data/                             not versioned: raw/, the graphs, rwpe/, gfp_variants/
 outputs/                          not versioned: train/, tuning/, final/, logs/
 ```
@@ -112,39 +114,34 @@ outputs/                          not versioned: train/, tuning/, final/, logs/
 ## Quick start
 
 ```bash
-# 1. Environment
-git clone https://github.com/sandrokhizanishvili/gnn_for_aml.git && cd gnn_for_aml
-conda env create -p <env path> -f environment.yml
+git clone https://github.com/sandrokhizanishvili/gnn_for_aml.git
+cd gnn_for_aml
+conda env create -f environment.yml
+conda activate aml_thesis
 
-# 2. Data: put HI-Small_Trans.csv and HI-Small_accounts.csv (Kaggle, "IBM Transactions for
-#    Anti Money Laundering") in data/raw/, then
-python prepare_data.py                  # builds graphs -> rwpe -> gfp_tuned; finished steps are skipped
-python prepare_data.py step=rwpe        # or one step only
-
-# 3. Check the setup, then train one model
-python run.py mode=check                # versions, device, one pass per operator
-python run.py model=gin feature_config=c5
+python prepare_data.py                      # needs the two raw files in data/raw/ (below)
+python run.py mode=check                    # setup test
+python run.py model=gin feature_config=c5   # one run
 ```
 
 The result is in `outputs/train/gin/gin_mp-base_readout-full_dir-in/seed-42/results.json`.
 
-Notes on step 2:
-- The GFP step needs IBM `snapml`. Linux: `pip install snapml` and set `gfp.python=''`. Windows: the step runs in
-  WSL; set it up once with `python3 -m venv ~/gfp_env && ~/gfp_env/bin/pip install 'numpy<2' snapml`.
-- The rebuilt files match the thesis data bit for bit (`EXPERIMENTS.md`, "Data preparation").
-- Ready-made copies are on Kaggle: `sandrokhizanishvili/hi-small-gnn`, `hi-small-rwpe`, `hi-small-gfp-tuned`.
+Data:
+- Raw files: `HI-Small_Trans.csv` and `HI-Small_accounts.csv` from the Kaggle dataset "IBM Transactions for Anti
+  Money Laundering". Ready-made data: Kaggle `sandrokhizanishvili/hi-small-gnn`, `hi-small-rwpe`, `hi-small-gfp-tuned`.
+- The GFP step needs IBM `snapml`. Linux: `pip install snapml`, then `python prepare_data.py gfp.python=''`.
+  Windows: it runs in WSL; set it up once with `python3 -m venv ~/gfp_env && ~/gfp_env/bin/pip install 'numpy<2' snapml`.
+- Finished steps are skipped. The rebuilt files match the thesis data bit for bit.
 
 ## How runs work
 
-- One command = one run: `python run.py` plus overrides (`model=pna seed=43`).
-- `-m` runs every combination of comma-separated values (`-m model=gin,pna feature_config=c1,c2` = 4 runs).
-- Runs can be repeated safely: a finished run returns at once, an interrupted one resumes from `resume.pt`, an
-  interrupted search from its `study.log`. If something stops, run the same command again.
-- `mode` = `train` (fixed architecture), `tune` (search), `final` (retrain the search winner), `check` (setup test).
-- A search is one Optuna study per model (per model and feature configuration for a GNN). `worker=<n>` lets several
-  jobs share one study; never start the same worker number twice on one study.
-- To extend a finished study (a 10-trial pilot to the full 100): delete its `recipe.json` and run the search again.
-  The trials already in `study.log` count.
+- One command = one run: `python run.py` plus settings, e.g. `model=pna seed=43`.
+- `-m` runs every combination: `-m model=gin,pna feature_config=c1,c2` = 4 runs.
+- `mode`: `train` (fixed architecture), `tune` (search), `final` (retrain the search winner), `check` (setup test).
+- If a run stops, run the same command again: finished runs are skipped, stopped ones continue.
+- A search is one Optuna study per model (GNN: per model and config). Jobs can share a study with `worker=<n>`;
+  never start the same worker number twice.
+- To extend a finished study (e.g. a 10-trial pilot to 100): delete its `recipe.json` and run the search again.
 
 ## Experiments
 
@@ -158,38 +155,34 @@ Notes on step 2:
 | One GNN study, one worker | `python run.py tuning=gnn/search model=gin feature_config=c2` | same |
 | Progress, checks and summaries of the GNN search | `python aggregate.py machine=leonardo` | `trials.csv`, `tuning_curves.png` |
 | Retrain the winners (40 jobs) | `python run.py -m tuning=gnn/final machine=leonardo` | `outputs/final/<model>/` |
-| LightGBM baseline: search, then winner × 5 seeds | `python run.py -m tuning=lightgbm/search`, then `python run.py -m tuning=lightgbm/final` | `outputs/tuning/lightgbm/`, `outputs/final/lightgbm/` |
-| MLP baseline | same as LightGBM with `mlp`; on Kaggle, `notebooks/mlp_runs.ipynb` | `outputs/tuning/mlp/`, `outputs/final/mlp/` |
+| LightGBM: search, then the winner × 5 seeds | `python run.py -m tuning=lightgbm/search`, then `python run.py -m tuning=lightgbm/final` | `outputs/tuning/lightgbm/`, `outputs/final/lightgbm/` |
+| MLP: the same with `mlp` (on Kaggle: `notebooks/mlp_runs.ipynb`) | `python run.py -m tuning=mlp/search`, then `python run.py -m tuning=mlp/final` | `outputs/tuning/mlp/`, `outputs/final/mlp/` |
 
 ## Where to run
 
 | Machine | Use for | How |
 |---|---|---|
-| Laptop (`machine=local`, default) | data preparation, LightGBM, MLP, `mode=check` | Uses the GPU if there is one, else CPU. GNN training needs a GPU. |
-| Kaggle (`machine=kaggle`) | GNN runs, the MLP search | See below. |
-| Cineca Leonardo (`machine=leonardo`) | GNN search and final retrain | Run the command on a login node; it submits SLURM jobs. See below. |
+| Laptop (default) | data preparation, LightGBM, MLP, `mode=check` | GPU if there is one, else CPU. GNN training needs a GPU. |
+| Kaggle (`machine=kaggle`) | GNN runs, the MLP search | the notebooks below |
+| Cineca Leonardo (`machine=leonardo`) | GNN search and final retrain | run the command on a login node; it submits the jobs |
 
-A search continues from the `study.log` in its output folder. On Kaggle the working folder is lost between sessions:
-download `outputs/tuning/` at the end of a session and put it back before the next one.
+**Kaggle.** Open a notebook in a GPU session, add the dataset `sandrokhizanishvili/hi-small-gnn` as input, Run All:
+`gnn_fixed_architecture_runs.ipynb` (set `MODEL`), `gnn_node_encoding_runs.ipynb`, `gnn_tuned_gfp_runs.ipynb` (these
+two also need `hi-small-rwpe` and `hi-small-gfp-tuned`), `mlp_runs.ipynb`. Download `/kaggle/working/outputs/` into
+`outputs/`. Kaggle loses its files between sessions: to continue a search, put its `outputs/tuning/` back first.
 
-**Kaggle.** Open `notebooks/gnn_fixed_architecture_runs.ipynb` in a GPU notebook, add the dataset
-`sandrokhizanishvili/hi-small-gnn` as input, set `MODEL`, Run All. For the node-encoding and tuned-GFP studies use
-`notebooks/gnn_node_encoding_runs.ipynb` and `notebooks/gnn_tuned_gfp_runs.ipynb` (they also link `hi-small-rwpe`
-and `hi-small-gfp-tuned`). Download `/kaggle/working/outputs/` into the local `outputs/`.
-
-**Cineca (Leonardo Booster).** Jobs use partition `boost_usr_prod`, one GPU each, 24 h; a job that hits the limit
-is requeued and resumes.
+**Cineca (Leonardo Booster).** Activate the environment, then run the commands of "Experiments" with
+`machine=leonardo`. Each job gets one GPU for up to 24 h; a job cut by the limit is requeued and continues.
 
 | Setting | Value |
 |---|---|
-| Folders | `$WORK/aml_thesis/data`, `$WORK/aml_thesis/env`, `$WORK/aml_thesis/outputs` |
-| Environment | `conda env create -p $WORK/aml_thesis/env -f environment.yml` |
-| Project account | your default project; to charge another, add `export ACCOUNT=<account>` to `~/.bashrc` (see `saldo -b`) |
+| Data and outputs | `$WORK/aml_thesis/data`, `$WORK/aml_thesis/outputs` |
+| Project account | your default; for another, `export ACCOUNT=<account>` in `~/.bashrc` |
 | Fewer jobs at once | `hydra.launcher.array_parallelism=<n>` |
-| Fewer workers per study | `worker=0` (one worker per study, 8 jobs) or `worker=0,1` |
+| Fewer workers per study | `worker=0` or `worker=0,1` |
 | Job logs | `outputs/logs/<timestamp>/jobs/` |
 
-Bring results back (from `$WORK/aml_thesis`):
+Bring results back, from `$WORK/aml_thesis`:
 ```bash
 tar -czf results_small.tar.gz --exclude='*.pt' --exclude='predictions.csv' --exclude='logs' outputs
 tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
@@ -208,7 +201,8 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 - `<run>` = `<model>_mp-<mp>_readout-<readout>_dir-in`, plus `_enc-rwpe16` or `_gfp-tuned` when used.
   LightGBM and MLP: `lightgbm_readout-full`, `mlp_readout-full`.
 - `results.json` holds seven metrics on train, validation and test: F1, precision, recall, PR-AUC, ROC-AUC, and
-  precision and recall in the top 5 %. It also stores the threshold, the best epoch and the hyperparameters.- `recipe.json` is the frozen winner of a search: its values, its best epoch (LightGBM: round) and its validation
+  precision and recall in the top 5 %. It also stores the threshold, the best epoch and the hyperparameters.
+- `recipe.json` is the frozen winner of a search: its values, its best epoch (LightGBM: round) and its validation
   threshold. It is written when the last trial of the study ends.
 
 ## Evaluation protocol
@@ -238,11 +232,10 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 | Score of a trial | its best validation PR-AUC; that epoch / round and its best-F1 threshold are kept |
 | Start trial | GNN: the fixed architecture; MLP: a hand-picked point. Never pruned |
 | Seeds | one training seed (42) per trial; the winner is retrained with seeds 42-46 |
-| Final | the winner is retrained on train + validation for its best epoch / round, at its frozen threshold; test scored once per seed |
+| Final | the winner is retrained on train + validation for its best epoch / round; the threshold stays the one chosen on validation in the search; test scored once per seed |
 
 - Studies: LightGBM, MLP, and each GNN operator on c2 and on c4 (8 studies).
 - A trial that runs out of GPU memory or diverges is recorded without a score and cannot win.
-- The search never loads the test set.
 
 **GNN search space** (`conf/hyperparameters/gnn/space.yaml` + `space:` in `conf/model/<operator>.yaml`)
 
@@ -268,12 +261,9 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 
 **LightGBM and MLP baselines** (`conf/hyperparameters/lightgbm/`, `conf/hyperparameters/mlp/`)
 - Inputs: the 93 columns the GNN classifier sees (81 edge columns + 6 + 6 account-type one-hots).
-- Their search spaces are in the two `space.yaml` files; the strategy and the final rule are the ones above.
+- Search spaces: the two `space.yaml` files. The MLP uses the GNN values wherever a setting means the same.
 
 ## Documents
 
-- `EXPERIMENTS.md` — status of every experiment run from this repository.
 - `CLAUDE.md` — the rules of this repository (naming, configuration, protocol, verification).
-- `../gnn_for_fraudulent_patterns` — the earlier, notebook-based thesis repository: finished Kaggle runs,
-  `Progress_Report.md`.
 - `LICENSE` — MIT.
