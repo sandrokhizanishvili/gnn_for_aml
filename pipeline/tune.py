@@ -5,9 +5,12 @@ import os
 import matplotlib
 import matplotlib.pyplot as plt
 import optuna
+import pandas as pd
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend, JournalFileOpenLock
 from optuna.trial import TrialState
+
+from pipeline.metrics import best_epoch_scores
 
 matplotlib.use('Agg')
 
@@ -41,7 +44,8 @@ def suggest(trial, space):
 
 def run_search(study, study_dir, space, start, n_trials, worker, run_trial):
     '''Runs trials until the study has n_trials; worker 0 queues the start trial, if there is one.
-    run_trial(values, trial_dir, report) -> (score, info); score = None when the trial cannot win.
+    run_trial(values, trial_dir, report) -> (score, info); score = None when the trial cannot win; info = what the
+    study keeps of the trial: its best epoch, threshold and train / val metrics (the columns of trials.csv).
     report(best score so far, step) stops the trial when the pruner says so.'''
     stopped = [t for t in study.get_trials(states=(TrialState.RUNNING,)) if t.user_attrs.get('worker') == worker]
     if worker == 0 and start and not any(t.user_attrs.get('start') for t in study.trials):
@@ -55,7 +59,7 @@ def run_search(study, study_dir, space, start, n_trials, worker, run_trial):
             trial, reported = study.ask(), 0
             trial.set_user_attr('worker', worker)
         values = suggest(trial, space)   # a continued trial gets its stored values back
-        folder = f't{trial.number:03d}'
+        trial_dir = f'{study_dir}/t{trial.number:03d}'
 
         def report(score, step):
             if step > reported:   # the steps up to `reported` were checked before the stop
@@ -65,16 +69,17 @@ def run_search(study, study_dir, space, start, n_trials, worker, run_trial):
 
         print(f'--- trial {trial.number}: {values}', flush=True)
         try:
-            score, info = run_trial(values, f'{study_dir}/{folder}', report)
-        except optuna.TrialPruned:
-            score, info = None, {}
+            score, info = run_trial(values, trial_dir, report)
+        except optuna.TrialPruned:   # stopped in a GNN or MLP epoch loop: its epochs so far are in its history.csv
+            history = pd.read_csv(f'{trial_dir}/history.csv', float_precision='round_trip')   # the default parser is one bit off
+            score, info = None, best_epoch_scores(history.to_dict('records'))
         for key, value in info.items():
             trial.set_user_attr(key, value)
         state = TrialState.COMPLETE if score is not None else TrialState.PRUNED
         study.tell(trial, score, state=state)
         print(f'trial {trial.number} {state.name}' + (f': {score:.4f}' if score is not None else ''), flush=True)
-        if os.path.exists(f'{study_dir}/{folder}/resume.pt'):   # the checkpoint of a GNN trial, no longer needed
-            os.remove(f'{study_dir}/{folder}/resume.pt')
+        if os.path.exists(f'{trial_dir}/resume.pt'):   # the checkpoint of a GNN trial, no longer needed
+            os.remove(f'{trial_dir}/resume.pt')
 
 
 def save_summary(study, study_dir):

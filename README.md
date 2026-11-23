@@ -193,7 +193,7 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 | Folder | Contents |
 |---|---|
 | `outputs/train/<model>/<run>/seed-<s>/` | `results.json`, `history.csv`, `curves.png`, `predictions.csv`, `best.pt`, `config.yaml` |
-| `outputs/tuning/<model>/<run>/` | `study.log` (the study: every trial's values, scores and state), `trials.csv`, `tuning_curves.png`, `recipe.json`; GNN: `t<number>/history.csv` per trial |
+| `outputs/tuning/<model>/<run>/` | `study.log` (the study), `trials.csv` (one row per trial), `tuning_curves.png`, `recipe.json`; GNN and MLP: `t<number>/history.csv` per trial |
 | `outputs/final/<model>/<run>/seed-<s>/` | as in `train/`, with `final.pt` (LightGBM: `final.txt`) |
 | `outputs/final/<model>/<run>/` | `batch_summary_final.csv`, `seed_summary_final.csv` |
 | `outputs/logs/<timestamp>/` | overrides of one launch; on Cineca also the job logs |
@@ -204,6 +204,9 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
   precision and recall in the top 5 %. It also stores the threshold, the best epoch and the hyperparameters.
 - `recipe.json` is the frozen winner of a search: its values, its best epoch (LightGBM: round) and its validation
   threshold. It is written when the last trial of the study ends.
+- `trials.csv` has one row per trial, pruned trials included: its values, state, score, best epoch (LightGBM: round),
+  threshold, and the seven metrics on train and validation at that epoch.
+- `t<number>/history.csv` holds the same metrics for every epoch of one GNN or MLP trial.
 
 ## Evaluation protocol
 
@@ -229,7 +232,7 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 | Pruner | Hyperband, reduction factor 3, 3 brackets; nothing else stops a trial (no early stopping) |
 | Budget | 100 trials per study, the start trial and the start-up trials included |
 | A full trial | GNN and MLP: 100 epochs at a constant learning rate; LightGBM: 1,000 rounds. Pruner checks at 4, 12, 36 epochs / 40, 120, 360 rounds |
-| Score of a trial | its best validation PR-AUC; that epoch / round and its best-F1 threshold are kept |
+| Score of a trial | its best validation PR-AUC; that epoch / round, its best-F1 threshold and its train and validation metrics are kept |
 | Start trial | GNN: the fixed architecture; MLP: a hand-picked point. Never pruned |
 | Seeds | one training seed (42) per trial; the winner is retrained with seeds 42-46 |
 | Final | the winner is retrained on train + validation for its best epoch / round; the threshold stays the one chosen on validation in the search; test scored once per seed |

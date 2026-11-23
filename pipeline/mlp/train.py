@@ -2,20 +2,21 @@
 scored every epoch.'''
 import time
 
+import pandas as pd
 import torch
 import torch.nn as nn
 
 from pipeline.data import set_seed
 from pipeline.gnn.model import count_params, device
 from pipeline.lightgbm.model import LOSS_WEIGHT
-from pipeline.metrics import epoch_row
+from pipeline.metrics import epoch_row, train_val_metrics
 from pipeline.mlp.model import MLP, predict_mlp
 
 
-def fit_mlp(knobs, X, y, rows, fit_rows, epochs, seed, report=None):
+def fit_mlp(knobs, X, y, rows, fit_rows, epochs, seed, out_dir, report=None):
     '''X: the standardised matrix on the device; y: the 0/1 labels (numpy); fit_rows: the slice trained on (the train
-    rows in a search, train + val in the final refit). A search passes report(best score so far, epoch), which may
-    stop the trial. Returns (model, history).'''
+    rows in a search, train + val in the final refit). Every metric of every epoch goes to out_dir/history.csv. A
+    search passes report(best score so far, epoch), which may stop the trial. Returns (model, history).'''
     set_seed(seed)
     model = MLP(X.shape[1], knobs).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=knobs['lr'], weight_decay=knobs['weight_decay'])
@@ -36,9 +37,13 @@ def fit_mlp(knobs, X, y, rows, fit_rows, epochs, seed, report=None):
             loss.backward()
             optimizer.step()
             losses.append(loss.detach())
-        row = epoch_row(epoch, y_train, predict_mlp(model, X, tr), y_val, predict_mlp(model, X, va), LOSS_WEIGHT, t0)
+        p_train, p_val = predict_mlp(model, X, tr), predict_mlp(model, X, va)
+        row = epoch_row(epoch, y_train, p_train, y_val, p_val, LOSS_WEIGHT, t0)
         row.update(train_loss_batches=float(torch.stack(losses).mean()), lr=knobs['lr'])
+        for name, value in train_val_metrics(y_train, p_train, y_val, p_val, row['threshold']).items():
+            row.setdefault(name, value)
         history.append(row)
+        pd.DataFrame(history).to_csv(f'{out_dir}/history.csv', index=False)
         best = max(best, row['val_pr_auc'])
         print(f"epoch {epoch:3d} | loss {row['train_loss']:.4f} / {row['val_loss']:.4f} | F1 {row['train_f1']:.4f} / {row['val_f1']:.4f} "
               f"@ {row['threshold']:.3f} | PR-AUC {row['train_pr_auc']:.4f} / {row['val_pr_auc']:.4f} | {row['seconds']:.1f}s", flush=True)

@@ -64,8 +64,8 @@ def train_gnn(cfg, name, out_dir, graphs, col_sets, node_dim, r):
 
 def tune_gnn(cfg, graphs, col_sets, node_dim, r, trial_dir, report):
     '''One trial of the search: the recipe on the train graph, train + val scored every epoch, no test loader, no
-    checkpoints. Returns (best validation PR-AUC, its epoch and threshold); the score is None when the trial ran
-    out of memory or diverged, so it cannot win.'''
+    checkpoints. Returns (best validation PR-AUC, its epoch, threshold and train / val metrics); the score is None
+    when the trial ran out of memory or diverged, so it cannot win.'''
     print(f'recipe {r}')
     os.makedirs(trial_dir, exist_ok=True)
     gc.collect()
@@ -74,7 +74,7 @@ def tune_gnn(cfg, graphs, col_sets, node_dim, r, trial_dir, report):
     model, n_params, n_invariant = build(cfg, graphs['train'], node_dim, mp_idx, readout_idx, r)
     try:
         loaders = gnn_train.make_loaders(graphs, mp_idx, readout_idx, r, splits=('train', 'val'))
-        history, best_epoch, threshold = gnn_train.train_one_run(model, loaders, trial_dir, r, save_best=False, report=report)
+        history, _, _ = gnn_train.train_one_run(model, loaders, trial_dir, r, save_best=False, report=report)
     except (torch.cuda.OutOfMemoryError, RuntimeError) as err:
         if not ('out of memory' in str(err).lower() or 'ALLOC_FAILED' in str(err)):
             raise
@@ -82,9 +82,8 @@ def tune_gnn(cfg, graphs, col_sets, node_dim, r, trial_dir, report):
         return None, {'error': 'out of memory'}
     if len(history) < r['epochs']:
         return None, {'error': f'diverged at epoch {len(history) + 1}'}
-    best = history[best_epoch - 1]
-    return best['val_pr_auc'], dict(best_epoch=best_epoch, threshold=threshold, val_f1=best['val_f1'], params=n_params,
-                                    invariant_params=n_invariant)
+    best = metrics.best_epoch_scores(history)
+    return best['val_pr_auc'], dict(best, params=n_params, invariant_params=n_invariant)
 
 
 def final_gnn(cfg, name, out_dir, graphs, col_sets, node_dim, frozen):
@@ -135,12 +134,12 @@ def final_tabular(cfg, name, out_dir, graphs, frozen):
         booster, history = lgb_train.fit_final_booster(params, hp, X, y, rows, stop, seed)
         prob, n_params = lgb_model.predict_booster(booster, X), stop
         booster.save_model(f'{out_dir}/final.txt')
+        pd.DataFrame(history).to_csv(f'{out_dir}/history.csv', index=False)
     else:
         fit_rows = slice(rows['train'].start, rows['val'].stop)
-        model, history = mlp_train.fit_mlp(params, X, y, rows, fit_rows, stop, seed)
+        model, history = mlp_train.fit_mlp(params, X, y, rows, fit_rows, stop, seed, out_dir)
         prob, n_params = mlp_model.predict_mlp(model, X, slice(0, len(y))), gnn_model.count_params(model)
         torch.save(model.state_dict(), f'{out_dir}/final.pt')
-    pd.DataFrame(history).to_csv(f'{out_dir}/history.csv', index=False)
     scores, preds = metrics.score_splits(prob, y, rows, threshold)
     results.save_predictions(out_dir, graphs, preds, threshold)
     results.plot_curves(history, f'{name} seed {seed} (train+val refit)', f'{out_dir}/curves.png',
@@ -160,11 +159,12 @@ def search(cfg, out_dir, graphs, col_sets, node_dim):
     s = hp['search']
     if model['kind'] == 'tabular':
         X, y, rows = tabular_inputs(cfg, graphs)
-        fit = lgb_tune.run_trial if model['name'] == 'lightgbm' else mlp_tune.run_trial
         space, start, cap = s['space'], s.get('start'), hp['rounds' if model['name'] == 'lightgbm' else 'epochs']
 
         def run_trial(values, trial_dir, report):
-            return fit(values, hp, X, y, rows, seed, report)
+            if model['name'] == 'lightgbm':
+                return lgb_tune.run_trial(values, hp, X, y, rows, seed, report)
+            return mlp_tune.run_trial(values, hp, X, y, rows, seed, report, trial_dir)
     else:
         base = recipe_of(hp)
         space, cap = dict(s['space'], **model['space']), base['epochs']

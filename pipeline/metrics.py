@@ -48,6 +48,20 @@ def epoch_row(epoch, y_train, p_train, y_val, p_val, pos_weight, t0):
             'threshold': threshold, 'seconds': time.time() - t0}
 
 
+def train_val_metrics(y_train, p_train, y_val, p_val, threshold):
+    '''The seven metrics of the train and of the val rows at one threshold -> {train_f1: ..., val_recall_at_5pct: ...}.'''
+    return {f'{split}_{name}': value for split, y, p in (('train', y_train, p_train), ('val', y_val, p_val))
+            for name, value in compute_metrics(y, p, threshold).items()}
+
+
+def best_epoch_scores(history):
+    '''What a search keeps of a trial: the epoch with the best validation PR-AUC, its threshold and its seven metrics
+    on train and val. history = the rows of a history.csv.'''
+    best = max(history, key=lambda row: row['val_pr_auc'])
+    return dict(best_epoch=best['epoch'], threshold=best['threshold'],
+                **{name: best[name] for name in METRIC_COLS if not name.startswith('test')})
+
+
 def score_splits(prob, y, rows, threshold):
     '''{split: metrics} and {split: {edge_id, y, prob}} from the probabilities of every row (tabular models).'''
     metrics = {s: compute_metrics(y[r], prob[r], threshold) for s, r in rows.items()}
