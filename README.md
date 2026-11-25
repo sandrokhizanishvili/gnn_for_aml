@@ -101,6 +101,9 @@ pipeline/
 notebooks/
   gnn_fixed_architecture_runs.ipynb      Kaggle GPU runs: one operator x c1..c7
   gnn_fixed_architecture_results.ipynb   tables and plots of the downloaded runs (outputs/train/)
+  gnn_parameter_matched_gin_runs.ipynb          Kaggle GPU runs: GIN x c1..c7 at hidden 304 (PNA's parameter count)
+  gnn_parameter_matched_gat_runs.ipynb          the same for GATv2, hidden 304
+  gnn_parameter_matched_transformer_runs.ipynb  the same for the Transformer, hidden 236
   gnn_node_encoding_runs.ipynb           Kaggle GPU runs: the node-encoding study (rwpe16)
   gnn_tuned_gfp_runs.ipynb               Kaggle GPU runs: the tuned-GFP study
   mlp_runs.ipynb                         Kaggle GPU: the MLP search, then its final
@@ -170,19 +173,26 @@ Data:
 `gnn_fixed_architecture_runs.ipynb` (set `MODEL`), `gnn_node_encoding_runs.ipynb`, `gnn_tuned_gfp_runs.ipynb` (these
 two also need `hi-small-rwpe` and `hi-small-gfp-tuned`), `mlp_runs.ipynb`. Download `/kaggle/working/outputs/` into
 `outputs/`. Kaggle loses its files between sessions: to continue a search, put its `outputs/tuning/` back first.
+The three `gnn_parameter_matched_<operator>_runs.ipynb` repeat the fixed-architecture runs with a larger `hidden`
+(`hyperparameters.hidden=304` for GIN and GATv2, `236` for the Transformer), so that each operator has PNA's parameter
+count within 4.1%. Their runs keep the fixed-architecture run names: download their `results_small.zip`, whose run
+folders end in `_h-<hidden>`.
 
 **Cineca (Leonardo Booster).** Activate the environment, then run the commands of "Experiments" with
 `machine=leonardo`. Each job gets one GPU for up to 24 h; a job cut by the limit is requeued and continues.
+Test the setup first with `python run.py -m mode=check machine=leonardo`: `-m` submits it as a GPU job (the login
+nodes have no GPU), and what it printed must end with `OK`.
 
 | Setting | Value |
 |---|---|
-| Data and outputs | `$WORK/aml_thesis/data`, `$WORK/aml_thesis/outputs` |
+| Data and outputs | `data/` and `outputs/` in the repository folder, as on a laptop: type the commands there |
+| Data kept elsewhere | add `paths.data=<folder>` to the commands |
 | Project account | your default; for another, `export ACCOUNT=<account>` in `~/.bashrc` |
 | Fewer jobs at once | `hydra.launcher.array_parallelism=<n>` |
 | Fewer workers per study | `worker=0` or `worker=0,1` |
-| Job logs | `outputs/logs/<timestamp>/jobs/` |
+| What a job printed | `outputs/logs/<timestamp>/jobs/<job>/<job>_0_log.out` (errors: `_log.err`) |
 
-Bring results back, from `$WORK/aml_thesis`:
+Bring results back, from the repository folder:
 ```bash
 tar -czf results_small.tar.gz --exclude='*.pt' --exclude='predictions.csv' --exclude='logs' outputs
 tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)

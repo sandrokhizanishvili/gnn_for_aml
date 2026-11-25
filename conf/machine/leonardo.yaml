@@ -5,8 +5,8 @@ defaults:
   - override /hydra/launcher: submitit_slurm
 machine: leonardo
 paths:
-  data: ${oc.env:WORK}/aml_thesis/data
-  outputs: ${oc.env:WORK}/aml_thesis/outputs
+  data: data                   # both in the repository folder, as on a laptop: type the commands there.
+  outputs: outputs             # Data kept elsewhere: add paths.data=<folder> to the commands.
 hydra:
   launcher:
     submitit_folder: ${hydra.sweep.dir}/jobs/%j   # job scripts and logs, next to the overrides of the launch
