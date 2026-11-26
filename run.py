@@ -63,9 +63,9 @@ def train_gnn(cfg, name, out_dir, graphs, col_sets, node_dim, r):
 
 
 def tune_gnn(cfg, graphs, col_sets, node_dim, r, trial_dir, report):
-    '''One trial of the search: the recipe on the train graph, train + val scored every epoch, no test loader, no
-    checkpoints. Returns (best validation PR-AUC, its epoch, threshold and train / val metrics); the score is None
-    when the trial ran out of memory or diverged, so it cannot win.'''
+    '''One trial of the search: the recipe on the train graph, val scored every epoch (train too when
+    search.score_train), no test loader, no checkpoints. Returns (best validation PR-AUC, its epoch, threshold and
+    metrics); the score is None when the trial ran out of memory or diverged, so it cannot win.'''
     print(f'recipe {r}')
     os.makedirs(trial_dir, exist_ok=True)
     gc.collect()
@@ -74,7 +74,8 @@ def tune_gnn(cfg, graphs, col_sets, node_dim, r, trial_dir, report):
     model, n_params, n_invariant = build(cfg, graphs['train'], node_dim, mp_idx, readout_idx, r)
     try:
         loaders = gnn_train.make_loaders(graphs, mp_idx, readout_idx, r, splits=('train', 'val'))
-        history, _, _ = gnn_train.train_one_run(model, loaders, trial_dir, r, save_best=False, report=report)
+        history, _, _ = gnn_train.train_one_run(model, loaders, trial_dir, r, save_best=False, report=report,
+                                                score_train=cfg['hyperparameters']['search']['score_train'])
     except (torch.cuda.OutOfMemoryError, RuntimeError) as err:
         if not ('out of memory' in str(err).lower() or 'ALLOC_FAILED' in str(err)):
             raise

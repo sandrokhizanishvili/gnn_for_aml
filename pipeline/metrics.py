@@ -38,14 +38,17 @@ def compute_metrics(y, p, threshold):
 
 
 def epoch_row(epoch, y_train, p_train, y_val, p_val, pos_weight, t0):
-    '''One history row: losses, F1 at the validation threshold, PR-AUC, ROC-AUC, threshold, seconds.'''
+    '''One history row: losses, F1 at the validation threshold, PR-AUC, ROC-AUC, threshold, seconds; no train
+    columns when the train rows were not scored (y_train = None).'''
     threshold, val_f1 = best_f1_threshold(y_val, p_val)
-    return {'epoch': epoch, 'train_loss': weighted_bce(y_train, p_train, pos_weight),
-            'val_loss': weighted_bce(y_val, p_val, pos_weight),
-            'train_f1': float(f1_score(y_train, (p_train >= threshold).astype(int))), 'val_f1': val_f1,
-            'train_pr_auc': float(average_precision_score(y_train, p_train)),
-            'val_pr_auc': float(average_precision_score(y_val, p_val)), 'val_roc_auc': float(roc_auc_score(y_val, p_val)),
-            'threshold': threshold, 'seconds': time.time() - t0}
+    train = y_train is not None
+    row = {'epoch': epoch, 'train_loss': weighted_bce(y_train, p_train, pos_weight) if train else None,
+           'val_loss': weighted_bce(y_val, p_val, pos_weight),
+           'train_f1': float(f1_score(y_train, (p_train >= threshold).astype(int))) if train else None, 'val_f1': val_f1,
+           'train_pr_auc': float(average_precision_score(y_train, p_train)) if train else None,
+           'val_pr_auc': float(average_precision_score(y_val, p_val)), 'val_roc_auc': float(roc_auc_score(y_val, p_val)),
+           'threshold': threshold, 'seconds': time.time() - t0}
+    return {name: value for name, value in row.items() if value is not None}
 
 
 def train_val_metrics(y_train, p_train, y_val, p_val, threshold):
@@ -56,10 +59,9 @@ def train_val_metrics(y_train, p_train, y_val, p_val, threshold):
 
 def best_epoch_scores(history):
     '''What a search keeps of a trial: the epoch with the best validation PR-AUC, its threshold and its seven metrics
-    on train and val. history = the rows of a history.csv.'''
+    on every split scored (val, and train unless a GNN search left it out). history = the rows of a history.csv.'''
     best = max(history, key=lambda row: row['val_pr_auc'])
-    return dict(best_epoch=best['epoch'], threshold=best['threshold'],
-                **{name: best[name] for name in METRIC_COLS if not name.startswith('test')})
+    return dict(best_epoch=best['epoch'], threshold=best['threshold'], **{name: best[name] for name in METRIC_COLS if name in best})
 
 
 def score_splits(prob, y, rows, threshold):

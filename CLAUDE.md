@@ -34,7 +34,8 @@ repo inherits (fixed architecture, evaluation protocol, leakage rules, writing s
 - **One search for every model** (README, "Evaluation protocol"): Optuna TPE + Hyperband, 100 trials per study, no
   early stopping, the score of a trial = its best validation PR-AUC, the winner retrained on train + val for its best
   epoch / round at its frozen threshold. Only the search space differs between models. Every trial, pruned ones too,
-  keeps its best epoch, threshold and the seven train / val metrics in the study (`trials.csv`). Every value in a search space
+  keeps its best epoch, threshold and the seven train / val metrics in the study (`trials.csv`); a GNN trial scores
+  validation only (`search.score_train: false`, the train pass is a third of an epoch). Every value in a search space
   needs a source (a paper, official code, or a recorded decision); the list is in `EXPERIMENTS.md`, "Search".
 - **`prepare_data.py` reproduces the thesis data files bit for bit** (full rebuild compared file by file on
   30 Oct 2026, `EXPERIMENTS.md` "Data preparation"). The exchange rates are frozen in `conf/fx_rates.csv` and must be

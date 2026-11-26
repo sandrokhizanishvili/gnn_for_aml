@@ -21,11 +21,12 @@ from pipeline.metrics import compute_metrics, epoch_row, weighted_bce
 # ---------------------------------------------------------------- loaders and prediction
 
 def make_loader(graph, shuffle, mp_idx, readout_idx, r):
-    '''Neighbour-sampling loader over a split's evaluated edges + their readout features (looked up by input_id).'''
-    mp_graph = Data(x=graph.x, edge_index=graph.edge_index, edge_time=graph.edge_time, num_nodes=graph.num_nodes,
-                    edge_attr=graph.edge_attr[:, mp_idx] if len(mp_idx) > 0 else None)
+    '''Neighbour-sampling loader over a split's evaluated edges + their readout features (looked up by input_id).
+    The features live on the device: the neighbours are sampled on the CPU, their features picked on the GPU.'''
+    mp_graph = Data(x=graph.x.to(device), edge_index=graph.edge_index, edge_time=graph.edge_time.to(device),
+                    num_nodes=graph.num_nodes, edge_attr=graph.edge_attr[:, mp_idx].to(device) if len(mp_idx) > 0 else None)
     seed_mask = graph.eval_mask
-    seed_feats = graph.edge_attr[seed_mask][:, readout_idx]
+    seed_feats = graph.edge_attr[seed_mask][:, readout_idx].to(device)
     kwargs = dict(num_neighbors=r['num_neighbors'], batch_size=r['batch_size'], shuffle=shuffle,
                   edge_label_index=graph.edge_index[:, seed_mask], edge_label=graph.y[seed_mask].float())
     if r['num_workers'] > 0:
@@ -123,13 +124,12 @@ def load_resume(path, model, optimizer, scheduler):
     return state
 
 
-def train_one_run(model, loaders, out_dir, r, save_best=True, report=None):
-    '''The epoch loop: train + val scored every epoch, threshold swept on val, best epoch by r['select_metric']
-    (best.pt when save_best), resumable. A search passes report(best score so far, epoch), which may stop the trial.
-    Returns (history rows, best_epoch, best_threshold).'''
+def train_one_run(model, loaders, out_dir, r, save_best=True, report=None, score_train=True):
+    '''The epoch loop: val (and train, when score_train) scored every epoch, threshold swept on val, best epoch by
+    r['select_metric'] (best.pt when save_best), resumable. A search passes report(best score so far, epoch), which
+    may stop the trial. Returns (history rows, best_epoch, best_threshold).'''
     metric = r['select_metric']
-    train_loader, train_feats = loaders['train']
-    val_loader, val_feats = loaders['val']
+    splits = ('train', 'val') if score_train else ('val',)
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([r['pos_weight']], device=device))
     optimizer, scheduler = make_optimizer(model, r)
     history, stopped, best = [], False, (-1.0, 0, 0.5)   # best = (score, epoch, threshold)
@@ -142,14 +142,13 @@ def train_one_run(model, loaders, out_dir, r, save_best=True, report=None):
             break
         t0 = time.time()
         lr_now = optimizer.param_groups[0]['lr']
-        loss_batches = train_epoch(model, train_loader, train_feats, optimizer, criterion)
-        y_train, p_train, _ = predict(model, train_loader, train_feats)
-        y_val, p_val, _ = predict(model, val_loader, val_feats)
-        if not (np.isfinite(p_val).all() and np.isfinite(p_train).all()):
+        loss_batches = train_epoch(model, *loaders['train'], optimizer, criterion)
+        scored = {split: predict(model, *loaders[split])[:2] for split in splits}
+        if not all(np.isfinite(p).all() for _, p in scored.values()):
             print(f'non-finite predictions at epoch {epoch}: the run diverged, training stops here')
             stopped = True   # no early stopping otherwise
         else:
-            row = epoch_row(epoch, y_train, p_train, y_val, p_val, r['pos_weight'], t0)
+            row = epoch_row(epoch, *scored.get('train', (None, None)), *scored['val'], r['pos_weight'], t0)
             row.update(train_loss_batches=loss_batches, lr=lr_now)
             threshold = row['threshold']
             is_best = row[f'val_{metric}'] > best[0]
@@ -157,14 +156,13 @@ def train_one_run(model, loaders, out_dir, r, save_best=True, report=None):
                 best = (row[f'val_{metric}'], epoch, threshold)
                 if save_best:
                     torch.save(model.state_dict(), f'{out_dir}/best.pt')
-            for split, y, p in (('train', y_train, p_train), ('val', y_val, p_val)):   # every metric, per epoch
+            for split, (y, p) in scored.items():   # every metric, per epoch
                 for name, value in compute_metrics(y, p, threshold).items():
                     row.setdefault(f'{split}_{name}', value)
             history.append(row)
-            print(f"epoch {epoch:03d} | loss {row['train_loss']:.4f} / {row['val_loss']:.4f} | "
-                  f"F1 {row['train_f1']:.4f} / {row['val_f1']:.4f} @ {threshold:.3f} | "
-                  f"PR-AUC {row['train_pr_auc']:.4f} / {row['val_pr_auc']:.4f} | {row['seconds']:.0f}s | "
-                  f"RAM {psutil.Process().memory_info().rss / 2**30:.1f}GB   (train / val)"
+            loss, f1, pr_auc = (' / '.join(f"{row[f'{split}_{name}']:.4f}" for split in splits) for name in ('loss', 'f1', 'pr_auc'))
+            print(f"epoch {epoch:03d} | loss {loss} | F1 {f1} @ {threshold:.3f} | PR-AUC {pr_auc} | {row['seconds']:.0f}s | "
+                  f"RAM {psutil.Process().memory_info().rss / 2**30:.1f}GB   ({' / '.join(splits)})"
                   + ('   * new best' if is_best else ''), flush=True)
             scheduler.step()
         save_resume(resume_path, model, optimizer, scheduler, dict(history=history, stopped=stopped, best=best))

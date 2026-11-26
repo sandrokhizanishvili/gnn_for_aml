@@ -217,6 +217,8 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 - `trials.csv` has one row per trial, pruned trials included: its values, state, score, best epoch (LightGBM: round),
   threshold, and the seven metrics on train and validation at that epoch.
 - `t<number>/history.csv` holds the same metrics for every epoch of one GNN or MLP trial.
+- A GNN trial scores validation only, so its rows have no train metrics: scoring the train rows takes about a third
+  of an epoch and the search does not use it. `hyperparameters.search.score_train=true` turns it on.
 
 ## Evaluation protocol
 
@@ -242,7 +244,7 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 | Pruner | Hyperband, reduction factor 3, 3 brackets; nothing else stops a trial (no early stopping) |
 | Budget | 100 trials per study, the start trial and the start-up trials included |
 | A full trial | GNN and MLP: 100 epochs at a constant learning rate; LightGBM: 1,000 rounds. Pruner checks at 4, 12, 36 epochs / 40, 120, 360 rounds |
-| Score of a trial | its best validation PR-AUC; that epoch / round, its best-F1 threshold and its train and validation metrics are kept |
+| Score of a trial | its best validation PR-AUC; that epoch / round, its best-F1 threshold and its metrics are kept (GNN: validation only) |
 | Start trial | GNN: the fixed architecture; MLP: a hand-picked point. Never pruned |
 | Seeds | one training seed (42) per trial; the winner is retrained with seeds 42-46 |
 | Final | the winner is retrained on train + validation for its best epoch / round; the threshold stays the one chosen on validation in the search; test scored once per seed |
