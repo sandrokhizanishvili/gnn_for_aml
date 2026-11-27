@@ -19,4 +19,5 @@ readout_layers: 2
 readout_width: 1.0
 lr_schedule: cosine     # cosine | constant
 num_workers: 0
+mixed_precision: false  # true = the forward pass in 16-bit numbers (torch.autocast), the weights and the loss in 32-bit
 select_metric: pr_auc   # validation metric that picks the best epoch: pr_auc | f1 (the Kaggle grid of the thesis used f1)

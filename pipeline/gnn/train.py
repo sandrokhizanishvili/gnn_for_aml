@@ -74,7 +74,7 @@ def score_all_splits(model, loaders, graphs, threshold, seed):
 
 # ---------------------------------------------------------------- the epoch loops
 
-def train_epoch(model, loader, feats, optimizer, criterion):
+def train_epoch(model, loader, feats, optimizer, criterion, scaler):
     '''One pass over the loader in train mode; returns the mean mini-batch loss.'''
     model.train()
     total, count = 0.0, 0
@@ -83,31 +83,35 @@ def train_epoch(model, loader, feats, optimizer, criterion):
         optimizer.zero_grad()
         logits, y = forward_batch(model, batch, feats)
         loss = criterion(logits, y)
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
         total, count = total + float(loss.detach()) * len(y), count + len(y)
     return total / max(1, count)
 
 
 def make_optimizer(model, r):
-    '''Adam + the recipe's schedule: cosine over the epochs, or constant.'''
+    '''Adam, the recipe's schedule (cosine over the epochs, or constant) and the gradient scaler of mixed precision,
+    which does nothing in 32-bit.'''
     optimizer = torch.optim.Adam(model.parameters(), lr=r['lr'], weight_decay=r['weight_decay'])
+    scaler = torch.amp.GradScaler(device.type, enabled=r['mixed_precision'])
     if r['lr_schedule'] == 'constant':
-        return optimizer, torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 1.0)
-    return optimizer, torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=r['epochs'])
+        return optimizer, torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 1.0), scaler
+    return optimizer, torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=r['epochs']), scaler
 
 
-def save_resume(path, model, optimizer, scheduler, loop_state):
-    '''resume.pt: model, optimizer, scheduler, every RNG state and the loop state, written atomically.'''
+def save_resume(path, model, optimizer, scheduler, scaler, loop_state):
+    '''resume.pt: model, optimizer, scheduler, scaler, every RNG state and the loop state, written atomically.'''
     rng = {'python': random.getstate(), 'numpy': np.random.get_state(), 'torch': torch.get_rng_state(),
            'cuda': torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []}
-    state = dict(loop_state, model=model.state_dict(), optimizer=optimizer.state_dict(), scheduler=scheduler.state_dict(), rng=rng)
+    state = dict(loop_state, model=model.state_dict(), optimizer=optimizer.state_dict(), scheduler=scheduler.state_dict(),
+                 scaler=scaler.state_dict(), rng=rng)
     tmp = f'{path}.tmp{os.getpid()}'
     torch.save(state, tmp)
     os.replace(tmp, path)
 
 
-def load_resume(path, model, optimizer, scheduler):
+def load_resume(path, model, optimizer, scheduler, scaler):
     '''The inverse of save_resume; returns the loop state, or None when there is nothing to resume from.'''
     if not os.path.exists(path):
         return None
@@ -115,6 +119,7 @@ def load_resume(path, model, optimizer, scheduler):
     model.load_state_dict(state['model'])
     optimizer.load_state_dict(state['optimizer'])
     scheduler.load_state_dict(state['scheduler'])
+    scaler.load_state_dict(state['scaler'])
     random.setstate(state['rng']['python'])
     np.random.set_state(state['rng']['numpy'])
     torch.set_rng_state(state['rng']['torch'])
@@ -131,10 +136,10 @@ def train_one_run(model, loaders, out_dir, r, save_best=True, report=None, score
     metric = r['select_metric']
     splits = ('train', 'val') if score_train else ('val',)
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([r['pos_weight']], device=device))
-    optimizer, scheduler = make_optimizer(model, r)
+    optimizer, scheduler, scaler = make_optimizer(model, r)
     history, stopped, best = [], False, (-1.0, 0, 0.5)   # best = (score, epoch, threshold)
     resume_path = f'{out_dir}/resume.pt'
-    state = load_resume(resume_path, model, optimizer, scheduler)
+    state = load_resume(resume_path, model, optimizer, scheduler, scaler)
     if state is not None:
         history, stopped, best = state['history'], state['stopped'], tuple(state['best'])
     for epoch in range(len(history) + 1, r['epochs'] + 1):
@@ -142,7 +147,7 @@ def train_one_run(model, loaders, out_dir, r, save_best=True, report=None, score
             break
         t0 = time.time()
         lr_now = optimizer.param_groups[0]['lr']
-        loss_batches = train_epoch(model, *loaders['train'], optimizer, criterion)
+        loss_batches = train_epoch(model, *loaders['train'], optimizer, criterion, scaler)
         scored = {split: predict(model, *loaders[split])[:2] for split in splits}
         if not all(np.isfinite(p).all() for _, p in scored.values()):
             print(f'non-finite predictions at epoch {epoch}: the run diverged, training stops here')
@@ -165,7 +170,7 @@ def train_one_run(model, loaders, out_dir, r, save_best=True, report=None, score
                   f"RAM {psutil.Process().memory_info().rss / 2**30:.1f}GB   ({' / '.join(splits)})"
                   + ('   * new best' if is_best else ''), flush=True)
             scheduler.step()
-        save_resume(resume_path, model, optimizer, scheduler, dict(history=history, stopped=stopped, best=best))
+        save_resume(resume_path, model, optimizer, scheduler, scaler, dict(history=history, stopped=stopped, best=best))
         pd.DataFrame(history).to_csv(f'{out_dir}/history.csv', index=False)
         if report is not None and not stopped and epoch < r['epochs']:   # after the last epoch the trial is complete
             report(best[0], epoch)
@@ -178,14 +183,14 @@ def train_fixed_epochs(model, fit_loader, out_dir, r, stop_epoch, eval_loaders):
     the curves only (val is training data here). Resumable. Writes final.pt, history.csv.'''
     loader, feats = fit_loader
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([r['pos_weight']], device=device))
-    optimizer, scheduler = make_optimizer(model, r)
+    optimizer, scheduler, scaler = make_optimizer(model, r)
     resume_path = f'{out_dir}/resume.pt'
-    state = load_resume(resume_path, model, optimizer, scheduler)
+    state = load_resume(resume_path, model, optimizer, scheduler, scaler)
     history = state['history'] if state is not None else []
     for epoch in range(len(history) + 1, stop_epoch + 1):
         t0 = time.time()
         lr_now = optimizer.param_groups[0]['lr']
-        loss = train_epoch(model, loader, feats, optimizer, criterion)
+        loss = train_epoch(model, loader, feats, optimizer, criterion, scaler)
         row = {'epoch': epoch, 'train_loss_batches': loss, 'lr': lr_now}
         for split, (eval_loader, eval_feats) in eval_loaders.items():
             y, p, _ = predict(model, eval_loader, eval_feats)
@@ -197,7 +202,7 @@ def train_fixed_epochs(model, fit_loader, out_dir, r, stop_epoch, eval_loaders):
         print(f"epoch {epoch:03d}/{stop_epoch} | batch loss {loss:.4f} | lr {lr_now:.2e} | "
               f"train PR-AUC {row['train_pr_auc']:.4f} | val (seen) PR-AUC {row['val_pr_auc']:.4f} | {row['seconds']:.0f}s", flush=True)
         scheduler.step()
-        save_resume(resume_path, model, optimizer, scheduler, dict(history=history))
+        save_resume(resume_path, model, optimizer, scheduler, scaler, dict(history=history))
     torch.save(model.state_dict(), f'{out_dir}/final.pt')
     pd.DataFrame(history).to_csv(f'{out_dir}/history.csv', index=False)
     return history

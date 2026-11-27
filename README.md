@@ -251,6 +251,8 @@ tar -czf results_predictions.tar.gz $(find outputs/final -name predictions.csv)
 
 - Studies: LightGBM, MLP, and each GNN operator on c2 and on c4 (8 studies).
 - A trial that runs out of GPU memory or diverges is recorded without a score and cannot win.
+- `hyperparameters.mixed_precision=true` runs the model's forward pass in 16-bit numbers (weights and loss stay
+  32-bit): less GPU memory and less time per epoch. Off by default; a winner is retrained in the precision of its search.
 
 **GNN search space** (`conf/hyperparameters/gnn/space.yaml` + `space:` in `conf/model/<operator>.yaml`)
 

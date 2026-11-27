@@ -20,7 +20,7 @@ CONV = {                                     # each operator's own settings in t
 }
 RECIPE_KEYS = ('hidden', 'num_layers', 'dropout', 'norm', 'residual', 'ffn', 'activation', 'conv', 'num_neighbors',
                'batch_size', 'epochs', 'lr', 'weight_decay', 'pos_weight', 'self_loops', 'readout_layers',
-               'readout_width', 'lr_schedule', 'num_workers', 'select_metric')
+               'readout_width', 'lr_schedule', 'num_workers', 'mixed_precision', 'select_metric')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -122,13 +122,15 @@ class EdgeClassifier(nn.Module):
             readout += [nn.Linear(in_dim, width), make_activation(r['activation']), nn.Dropout(r['dropout'])]
             in_dim = width
         self.classifier = nn.Sequential(*readout, nn.Linear(in_dim, 1))
+        self.mixed_precision = r['mixed_precision']
 
     def forward(self, x, edge_index, edge_attr, seed_index, seed_edge_feats):
-        h = self.act(self.node_proj(x))
-        for layer in self.layers:
-            h = layer(h, edge_index, edge_attr)
-        z = torch.cat([h[seed_index[0]], h[seed_index[1]], seed_edge_feats], dim=1)
-        return self.classifier(z).squeeze(-1)
+        with torch.autocast(x.device.type, dtype=torch.float16, enabled=self.mixed_precision):
+            h = self.act(self.node_proj(x))
+            for layer in self.layers:
+                h = layer(h, edge_index, edge_attr)
+            z = torch.cat([h[seed_index[0]], h[seed_index[1]], seed_edge_feats], dim=1)
+            return self.classifier(z).squeeze(-1).float()
 
 
 def build_model(operator, node_dim, mp_edge_dim, readout_edge_dim, recipe, deg_hist=None, local='gin'):
