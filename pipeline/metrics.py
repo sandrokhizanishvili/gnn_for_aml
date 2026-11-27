@@ -38,8 +38,8 @@ def compute_metrics(y, p, threshold):
 
 
 def epoch_row(epoch, y_train, p_train, y_val, p_val, pos_weight, t0):
-    '''One history row: losses, F1 at the validation threshold, PR-AUC, ROC-AUC, threshold, seconds; no train
-    columns when the train rows were not scored (y_train = None).'''
+    '''One history row: losses, F1 at the validation threshold, PR-AUC, ROC-AUC, threshold, seconds.
+    y_train = None (train not scored) leaves the train columns out.'''
     threshold, val_f1 = best_f1_threshold(y_val, p_val)
     train = y_train is not None
     row = {'epoch': epoch, 'train_loss': weighted_bce(y_train, p_train, pos_weight) if train else None,
@@ -59,7 +59,7 @@ def train_val_metrics(y_train, p_train, y_val, p_val, threshold):
 
 def best_epoch_scores(history):
     '''What a search keeps of a trial: the epoch with the best validation PR-AUC, its threshold and its seven metrics
-    on every split scored (val, and train unless a GNN search left it out). history = the rows of a history.csv.'''
+    on val, and on train when it was scored. history = the rows of a history.csv.'''
     best = max(history, key=lambda row: row['val_pr_auc'])
     return dict(best_epoch=best['epoch'], threshold=best['threshold'], **{name: best[name] for name in METRIC_COLS if name in best})
 

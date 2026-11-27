@@ -10,7 +10,7 @@ num_workers: 4
 self_loops: false            # GATv2 only: the graph has real self-loops, which add_self_loops would replace
 search:
   first_check: 4             # epochs before the pruner's first check (then 12, 36)
-  score_train: false         # true = a trial also scores the train rows every epoch (about a third of its time)
+  score_train: false         # true = also score the train rows every epoch (about a third of a trial's time)
   models: [gin, pna, gat, transformer]
   feature_configs: [c2, c4]
   neighbours: [100, 100, 50, 50, 25, 25, 25, 25, 25, 25]   # sampled per hop; a depth-d trial takes the first d

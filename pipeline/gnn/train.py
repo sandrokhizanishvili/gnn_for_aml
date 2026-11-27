@@ -22,7 +22,7 @@ from pipeline.metrics import compute_metrics, epoch_row, weighted_bce
 
 def make_loader(graph, shuffle, mp_idx, readout_idx, r):
     '''Neighbour-sampling loader over a split's evaluated edges + their readout features (looked up by input_id).
-    The features live on the device: the neighbours are sampled on the CPU, their features picked on the GPU.'''
+    The features are kept on the GPU; the neighbours are sampled on the CPU.'''
     mp_graph = Data(x=graph.x.to(device), edge_index=graph.edge_index, edge_time=graph.edge_time.to(device),
                     num_nodes=graph.num_nodes, edge_attr=graph.edge_attr[:, mp_idx].to(device) if len(mp_idx) > 0 else None)
     seed_mask = graph.eval_mask
@@ -91,8 +91,7 @@ def train_epoch(model, loader, feats, optimizer, criterion, scaler):
 
 
 def make_optimizer(model, r):
-    '''Adam, the recipe's schedule (cosine over the epochs, or constant) and the gradient scaler of mixed precision,
-    which does nothing in 32-bit.'''
+    '''Adam, the recipe's schedule (cosine over the epochs, or constant) and the gradient scaler (used only in mixed precision).'''
     optimizer = torch.optim.Adam(model.parameters(), lr=r['lr'], weight_decay=r['weight_decay'])
     scaler = torch.amp.GradScaler(device.type, enabled=r['mixed_precision'])
     if r['lr_schedule'] == 'constant':
@@ -130,7 +129,7 @@ def load_resume(path, model, optimizer, scheduler, scaler):
 
 
 def train_one_run(model, loaders, out_dir, r, save_best=True, report=None, score_train=True):
-    '''The epoch loop: val (and train, when score_train) scored every epoch, threshold swept on val, best epoch by
+    '''The epoch loop: val scored every epoch (train too when score_train), threshold swept on val, best epoch by
     r['select_metric'] (best.pt when save_best), resumable. A search passes report(best score so far, epoch), which
     may stop the trial. Returns (history rows, best_epoch, best_threshold).'''
     metric = r['select_metric']
